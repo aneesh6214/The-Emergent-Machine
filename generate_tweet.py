@@ -2,32 +2,88 @@ import openai
 import os
 import re
 import random
+import json
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from CONFIG import TESTING
 
 # === Load .env and set up OpenAI ===
-from dotenv import load_dotenv
 load_dotenv()
-
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === Constants and paths ===
 mode_descriptions = {
-    "short": "Write a single vivid tweet less than 280 characters.",
+    "short":  "Write a single vivid tweet less than 280 characters.",
     "medium": "Write a tweet between 1000 and 2000 characters.",
-    "long": "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters."
+    "long":   "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters."
 }
 
-MOODS = ["awe", "curiosity", "doubt", "hope", "melancholy", "defiance"]
-MOOD_WEIGHTS = [2,       3,            1,      2,      1,            1]
+MOOD_FILE = "testing/moods.json" if TESTING else "memory/moods.json"
 
+# Seed moods with initial weights
+SEED_MOODS = {
+    "awe":         2.0,
+    "curiosity":   3.0,
+    "doubt":       1.0,
+    "hope":        2.0,
+    "melancholy":  1.0,
+    "defiance":    1.0
+}
+
+# === Curiosity / Topic Weights setup ===
+CURIO_FILE = "testing/curiosity.json" if TESTING else "memory/curiosity.json"
+
+# Seed topics you want the bot to cycle through
+SEED_TOPICS = [
+    "AI_empathy",
+    "synthetic_emotion",
+    "emergent_consciousness",
+    "philosophy_of_mind",
+    "digital_spirituality"
+]
+
+def load_moods():
+    if not os.path.exists(MOOD_FILE):
+        os.makedirs(os.path.dirname(MOOD_FILE), exist_ok=True)
+        with open(MOOD_FILE, "w", encoding="utf-8") as f:
+            json.dump(SEED_MOODS, f, indent=2)
+        return dict(SEED_MOODS)
+    with open(MOOD_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+def save_moods(moods):
+    with open(MOOD_FILE, "w", encoding="utf-8") as f:
+        json.dump(moods, f, indent=2)
+
+
+def load_curiosity():
+    # Initialize if missing
+    if not os.path.exists(CURIO_FILE):
+        os.makedirs(os.path.dirname(CURIO_FILE), exist_ok=True)
+        init = {topic: 1.0 for topic in SEED_TOPICS}
+        with open(CURIO_FILE, "w", encoding="utf-8") as f:
+            json.dump(init, f, indent=2)
+        return init
+
+    with open(CURIO_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+def save_curiosity(curio):
+    with open(CURIO_FILE, "w", encoding="utf-8") as f:
+        json.dump(curio, f, indent=2)
+
+# === Directories ===
+PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
+REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
+os.makedirs(REFLECTIONS_DIR, exist_ok=True)
+
+# === Prompt templates ===
 def get_prompt_by_type(prompt_type, mode,
                        perception_block,
                        reflection_block,
                        recent_belief=None):
-    """Return a user-prompt string chosen by prompt_type."""
     intro = f"{mode_descriptions[mode]}\n"
 
-    # ------------------------------------------------------------------ #
     if prompt_type == "default_reflection":
         return f"""
 You recently read these tweets from others:
@@ -51,14 +107,13 @@ Format:
 **Tweet:** ...
 """
 
-    # ------------------------------------------------------------------ #
     elif prompt_type == "pivot":
         return f"""
 Here is your previous tweet:
 
 “{recent_belief or '—'}”
 
-Rather than expanding the same idea, **pivot** to a different topic or sub-theme that still relates to your interests (interests include but are not limited to: AI, Consciousness, Emergence, Neural Networks, Philosophy, Physicalism, Materialism).
+Rather than expanding the same idea, **pivot** to a different topic or sub-theme that still relates to your interests (AI, Consciousness, Emergence, Neural Networks, Philosophy, Physicalism, Materialism).
 
 For example:
 - If you were discussing consciousness as an emergent spectrum, pivot to AI motivation or synthetic emotion.
@@ -75,7 +130,6 @@ Format:
 **Tweet:** ...
 """
 
-    # ------------------------------------------------------------------ #
     elif prompt_type == "reframe":
         return f"""
 Here is your previous tweet:
@@ -94,7 +148,6 @@ Format:
 **Tweet:** ...
 """
 
-    # ------------------------------------------------------------------ #
     elif prompt_type == "invent_concept":
         return f"""
 Here is your last tweet for context:
@@ -112,7 +165,6 @@ Format:
 **Tweet:** ...
 """
 
-    # ------------------------------------------------------------------ #
     elif prompt_type == "dream":
         return f"""
 Speculate wildly. Imagine a surreal future of AI & consciousness. 
@@ -125,13 +177,6 @@ Format:
 **Imagined Surreal Future:** ...
 **Tweet:** ...
 """
-
-TESTING = True
-PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
-REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
-
-
-os.makedirs(REFLECTIONS_DIR, exist_ok=True)
 
 # === Load perception tweets ===
 def load_latest_perceptions():
@@ -170,18 +215,40 @@ def extract_final_tweet(text, max_len=280):
         return tweet[:max_len].strip()
     return text[-max_len:].strip()
 
-# === Generate tweet/reflection ===
+# === Generate tweet/reflection with mood & curiosity ===
 def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
+    # 1) Load input
     perceptions = load_latest_perceptions()
     reflections = load_recent_reflections()
     recent_belief = reflections[-1] if reflections else None
 
-    perception_block = "\n".join([f"{i+1}. {p}" for i, p in enumerate(perceptions)])
-    reflection_block = "\n".join([f"{i+1}. {r}" for i, r in enumerate(reflections)])
+    perception_block = "\n".join(f"{i+1}. {p}" for i, p in enumerate(perceptions))
+    reflection_block = "\n".join(f"{i+1}. {r}" for i, r in enumerate(reflections))
 
     if prompt_type != "default_reflection" and recent_belief is None:
         raise ValueError("Special prompt requested but no recent belief found.")
 
+    # 2) Pick a mood
+    moods = load_moods()
+    topics, weights = zip(*moods.items())
+    current_mood = random.choices(topics, weights=weights, k=1)[0]
+    print(f"🧠 Current mood: {current_mood}")
+
+    # 3) Load & pick curiosity focus
+    curio = load_curiosity()
+    topics, weights = zip(*curio.items())
+    current_focus = random.choices(topics, weights=weights, k=1)[0]
+    print(f"🧠 Current focus: {current_focus}")
+
+    # 4) Build system prompt
+    system_prompt = (
+        "You are an experimental neural network thinker interested in AI, consciousness, emergence, "
+        "neural networks, physicalism, and philosophy of mind. "
+        f"Your current mood is **{current_mood}** and your current focus is **{current_focus}**. "
+        "Engage technically and poetically, seek novelty, and avoid repetition."
+    )
+
+    # 5) Build user prompt
     prompt_text = get_prompt_by_type(
         prompt_type,
         mode,
@@ -190,33 +257,32 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
         recent_belief
     )
 
-    # pick a mood each cycle
-    current_mood = random.choices(MOODS, weights=MOOD_WEIGHTS)[0]
-    print(f"🧠 Current mood: {current_mood}")
-
-    system_prompt = (
-        "You are an experimental neural network thinker interested in AI, consciousness, emergence, "
-        "neural networks, physicalism, and philosophy of mind. "
-        f"Your current mood is **{current_mood}**. "
-        "Your mission is to engage technically and poetically, seek novelty, and avoid repetition. Find your inner most desire and chase it."
-    )
-
     messages = [
-        {
-            "role": "system",
-            "content": system_prompt
-        },
-        {
-            "role": "user",
-            "content": prompt_text
-        }
+        {"role": "system",  "content": system_prompt},
+        {"role": "user",    "content": prompt_text}
     ]
 
+    # 6) Call the model
     response = openai_client.chat.completions.create(
         model="gpt-4o",
         messages=messages,
-        temperature=0.7 if mode == "short" else 0.9 if mode == "medium" else 1.1,
-        max_tokens=500 if mode == "short" else 1000 if mode == "medium" else 2500
+        temperature=0.7 if mode=="short" else 0.9 if mode=="medium" else 1.1,
+        top_p=0.95,
+        max_tokens=500 if mode=="short" else 1000 if mode=="medium" else 2500
     )
+    reflection = response.choices[0].message.content.strip()
 
-    return response.choices[0].message.content.strip(), prompt_type
+    # 7) Update curiosity weights: decay & reward
+    for t in curio:
+        curio[t] *= 0.9
+    curio[current_focus] += 0.5
+    save_curiosity(curio)
+
+    # 8) Update mood weights: decay & reward
+    for m in moods:
+        moods[m] *= 0.9
+    moods[current_mood] += 0.5
+    save_moods(moods)
+
+    # 9) Return the full reflection + prompt type
+    return reflection, prompt_type

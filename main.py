@@ -5,6 +5,7 @@ from datetime import datetime
 from generate_tweet import generate_reflective_tweet, extract_final_tweet, load_recent_reflections
 import tweepy
 from dotenv import load_dotenv
+from CONFIG import TESTING
 
 load_dotenv()
 
@@ -15,7 +16,7 @@ HOURS = 10 # Total number of tweet cycles
 #PROMPT_TYPE = "reframe"
 #PROMPT_TYPE = "invent_concept"
 #PROMPT_TYPE = "dream"
-TESTING = True  # Toggle for testing
+# TESTING = True
 
 REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
 TEST_OUTPUT_FILE = "testing/test_tweets.txt"
