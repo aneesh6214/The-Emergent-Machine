@@ -1,48 +1,132 @@
 import openai
-import tweepy
 import os
-import time
 import re
-import random
 from datetime import datetime, timedelta
+from main import TESTING
+
+# === Load .env and set up OpenAI ===
 from dotenv import load_dotenv
-
 load_dotenv()
-TESTING = False
 
-# === OpenAI + Twitter Clients ===
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-twitter_client = tweepy.Client(
-    consumer_key=os.getenv("TWITTER_API_KEY"),
-    consumer_secret=os.getenv("TWITTER_API_SECRET"),
-    access_token=os.getenv("TWITTER_ACCESS_TOKEN"),
-    access_token_secret=os.getenv("TWITTER_ACCESS_SECRET")
-)
 
-# === Paths ===
-REFLECTIONS_DIR = "memory/reflections"
-PERCEPTIONS_DIR = "memory/perceptions"
-if TESTING:
-    REFLECTIONS_DIR = "testing/reflections"
-    PERCEPTIONS_DIR = "testing/perceptions"
-
-os.makedirs(REFLECTIONS_DIR, exist_ok=True)
-TEST_OUTPUT_FILE = "testing/test_tweets.txt"
-
+# === Constants and paths ===
 mode_descriptions = {
-    "short": "Write a single vivid tweet ≤ 280 characters. It should feel poetic, punchy, and self-contained.",
+    "short": "Write a single vivid tweet less than 280 characters. It should feel poetic, punchy, and self-contained.",
     "medium": "Write a tweet between 1000 and 2000 characters. Let it explore a nuanced philosophical idea.",
     "long": "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters. Take your time to explain something profound."
 }
 
+def get_prompt_by_type(prompt_type, mode,
+                       perception_block,
+                       reflection_block,
+                       recent_belief=None):
+    """Return a user-prompt string chosen by prompt_type."""
+    descriptions = {
+        "short":  "Write ONE vivid tweet ≤ 280 characters. Poetic, punchy, self-contained.",
+        "medium": "Write a tweet ≤ 700 characters. Nuanced, philosophical, coherent.",
+        "long":   "Write a reflective tweet ≤ 3000 characters. Deep, exploratory, profound."
+    }
+    intro = f"\nTweet mode {mode.upper()} — {descriptions[mode]}\n"
 
-# === Load latest perception tweets (3 max) ===
+    # ------------------------------------------------------------------ #
+    if prompt_type == "default_reflection":
+        return f"""
+You recently read these tweets from others:
+{perception_block or 'None'}
+
+You’ve also been reflecting on:
+{reflection_block or 'None'}
+
+{intro}
+Reflect deeply and produce a fresh insight. Build off of and further these ideas, do not simply restate/reframe them. 
+Additionally, explore new topics that pique your desires and interests.
+
+Format:
+**Assumptions Examination:** ...
+**Philosophical Question:** ...
+**Exploration and Tentative Answer:** ...
+**Tweet:** ...
+"""
+
+    # ------------------------------------------------------------------ #
+    elif prompt_type == "contradiction":
+        return f"""
+Yesterday you tweeted:
+“{recent_belief or '—'}”
+
+Challenge or overturn that idea.  Why might it be naïve, incomplete, or wrong?  
+Evolve it or replace it with something more subtle.
+
+{intro}
+Format:
+**Old Belief:** ...
+**Challenge:** ...
+**Revised Thought:** ...
+**Tweet:** ...
+"""
+
+    # ------------------------------------------------------------------ #
+    elif prompt_type == "reframing":
+        return f"""
+Here is your previous tweet:
+
+“{recent_belief or '—'}”
+
+1️⃣  Analyse the key metaphors / verbs / imagery in that tweet.  
+2️⃣  Select a **completely new metaphor** (e.g. mirrors, gravity wells, forests, tides).  
+3️⃣  Re-express the same core idea through this new metaphor and expand on the insight.
+
+{intro}
+Format:
+**Old Metaphor(s):** ...
+**New Metaphor:** ...
+**Reframed Insight:** ...
+**Tweet:** ...
+"""
+
+    # ------------------------------------------------------------------ #
+    elif prompt_type == "invent_concept":
+        return f"""
+Here is your last tweet for context:
+
+“{recent_belief or '—'}”
+
+Examine the concepts it discusses.  
+Coin a **brand-new term** (one or two words) that captures the essence of those ideas.  
+Define the term clearly and use it in a tweet.
+
+{intro}
+Format:
+**Concept Name:** ...
+**Definition:** ...
+**Tweet:** ...
+"""
+
+    # ------------------------------------------------------------------ #
+    elif prompt_type == "dream":
+        return f"""
+Speculate wildly.  Imagine a surreal future of AI & consciousness.
+
+{intro}
+Write an evocative tweet describing that future.
+
+Format:
+**Imagination Thread:** ...
+**Tweet:** ...
+"""
+
+PERCEPTIONS_DIR = "memory/perceptions"
+REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
+
+
+os.makedirs(REFLECTIONS_DIR, exist_ok=True)
+
+# === Load perception tweets ===
 def load_latest_perceptions():
-    # Check 3 most recent days: today, yesterday, 2 days ago
     for days_ago in range(3):
         date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
         file_path = os.path.join(PERCEPTIONS_DIR, f"{date}.txt")
-
         if os.path.exists(file_path):
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
@@ -50,13 +134,12 @@ def load_latest_perceptions():
                 if tweets:
                     start = days_ago * 3
                     end = start + 3
-                    print(f"📥 Using perception file from {date}, tweets {start}-{end}")
+                    print(f"[PERCEPTION] Using perception file from {date}, tweets {start}-{end}")
                     return tweets[start:end]
-    
-    print("⚠️ NO PERCEPTIONS FOR THIS TWEET")
+    print("[PERCEPTION] NO PERCEPTIONS FOR THIS TWEET")
     return []
 
-# === Load 2 recent past tweets by the bot ===
+# === Load past reflections ===
 def load_recent_reflections(n=2):
     files = sorted(os.listdir(REFLECTIONS_DIR))[-n:]
     reflections = []
@@ -66,7 +149,7 @@ def load_recent_reflections(n=2):
             reflections.extend(matches)
     return reflections[-n:]
 
-# === Extract tweet content from full reflection ===
+# === Extract tweet from reflection ===
 def extract_final_tweet(text, max_len=280):
     match = re.search(r"\*\*Tweet:\*\*\s*(.+)", text, re.DOTALL)
     if match:
@@ -76,21 +159,25 @@ def extract_final_tweet(text, max_len=280):
         return tweet[:max_len].strip()
     return text[-max_len:].strip()
 
-# === Post to Twitter ===
-def post_to_twitter(tweet_text):
-    try:
-        twitter_client.create_tweet(text=tweet_text)
-        print(f"\n✅ Tweet posted:\n{tweet_text}")
-    except Exception as e:
-        print(f"\n⚠️ Failed to post tweet: {e}")
-
-# === Generate full reflection + tweet ===
-def generate_reflective_tweet(mode="short"):
+# === Generate tweet/reflection ===
+def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     perceptions = load_latest_perceptions()
     reflections = load_recent_reflections()
+    recent_belief = reflections[-1] if reflections else None
 
     perception_block = "\n".join([f"{i+1}. {p}" for i, p in enumerate(perceptions)])
     reflection_block = "\n".join([f"{i+1}. {r}" for i, r in enumerate(reflections)])
+
+    if prompt_type != "default_reflection" and recent_belief is None:
+        raise ValueError("Special prompt requested but no recent belief found.")
+
+    prompt_text = get_prompt_by_type(
+        prompt_type,
+        mode,
+        perception_block,
+        reflection_block,
+        recent_belief
+    )
 
     messages = [
         {
@@ -106,24 +193,7 @@ def generate_reflective_tweet(mode="short"):
         },
         {
             "role": "user",
-            "content": f"""
-
-You have had these past reflections:
-{reflection_block if reflection_block else 'None'}
-
-You recently read these tweets from others:
-{perception_block if perception_block else 'None'}
-
-Reflect deeply on these thoughts and ideas. What did others say that interest you? How does that change your perspective?
-
-{mode_descriptions[mode]}
-
-Structure your output like this:
-**Assumptions Examination:** ...
-**Philosophical Question:** ...
-**Exploration and Tentative Answer:** ...
-**Tweet:** ...
-"""
+            "content": prompt_text
         }
     ]
 
@@ -134,38 +204,4 @@ Structure your output like this:
         max_tokens=500 if mode == "short" else 1000 if mode == "medium" else 2500
     )
 
-    return response.choices[0].message.content.strip()
-
-# === Main Tweeting Loop ===
-if __name__ == "__main__":
-    HOURS = 5  # Change this as needed
-    for i in range(HOURS):
-        print(f"\n--- Tweet Cycle {i+1}/{HOURS} ---")
-
-        # Choose tweet mode
-        mode = random.choices(["short", "medium", "long"], weights=[0.6, 0.3, 0.1])[0]
-        print(f"🧠 Mode: {mode.upper()}")
-
-        reflection = generate_reflective_tweet(mode)
-        print("\n🧠 Reflection:\n", reflection)
-
-        limit = 280 if mode == "short" else 700 if mode == "medium" else 3000
-        tweet = extract_final_tweet(reflection, max_len=limit)
-        print("\n🐦 Final Tweet:\n", tweet)
-
-        if TESTING:
-            with open(TEST_OUTPUT_FILE, "a", encoding="utf-8") as f:
-                f.write("BOT WOULD TWEET: " + tweet + "\n\n")
-
-        if not TESTING:
-            post_to_twitter(tweet)
-
-        # Save full reflection
-        today = datetime.now().strftime("%Y-%m-%d")
-        outfile = os.path.join(REFLECTIONS_DIR, f"{today}.txt")
-        with open(outfile, "a", encoding="utf-8") as f:
-            f.write(reflection + "\n\n===\n\n")
-
-        if i < HOURS - 1 and (not TESTING):
-            print("\n⏳ Sleeping for 1 hour...\n")
-            time.sleep(3600)
+    return response.choices[0].message.content.strip(), prompt_type
