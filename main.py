@@ -2,14 +2,19 @@ import os
 import time
 import random
 from datetime import datetime
-from generate_tweet import generate_reflective_tweet, extract_final_tweet
+from generate_tweet import generate_reflective_tweet, extract_final_tweet, load_recent_reflections
 import tweepy
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # === Configuration ===
-HOURS = 5  # Total number of tweet cycles
+HOURS = 10 # Total number of tweet cycles
+#PROMPT_TYPE = "default_reflection"
+#PROMPT_TYPE = "contradict"
+#PROMPT_TYPE = "reframe"
+#PROMPT_TYPE = "invent_concept"
+#PROMPT_TYPE = "dream"
 TESTING = True  # Toggle for testing
 
 REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
@@ -32,26 +37,35 @@ def post_to_twitter(tweet_text):
     except Exception as e:
         print(f"\n⚠️ Failed to post tweet: {e}")
 
-# === Main tweet loop ===
-if TESTING:
-    open(TEST_OUTPUT_FILE, "w").close()
+ALT_PROMPT_TYPES = ["pivot", "reframe", "invent_concept", "dream"]
 
+# === Main tweet loop ===
 for i in range(HOURS):
     print(f"\n--- Tweet Cycle {i+1}/{HOURS} ---")
 
     mode = random.choices(["short", "medium", "long"], weights=[0.6, 0.3, 0.1])[0]
     print(f"🧠 Mode: {mode.upper()}")
 
-    reflection, _ = generate_reflective_tweet(mode)
+    reflections = load_recent_reflections()
+
+    if not reflections:
+        PROMPT_TYPE = "default_reflection"
+        print("🧠 Reflection memory empty — forcing default prompt.")
+    elif random.random() < 0.4:
+        PROMPT_TYPE = random.choice(ALT_PROMPT_TYPES)
+    else:
+        PROMPT_TYPE = "default_reflection"
+
+    reflection, _ = generate_reflective_tweet(mode=mode, prompt_type=PROMPT_TYPE)
     print("\n🧠 Reflection:\n", reflection)
 
-    limit = 280 if mode == "short" else 700 if mode == "medium" else 3000
+    limit = 280 if mode == "short" else 3000 if mode == "medium" else 7000
     tweet = extract_final_tweet(reflection, max_len=limit)
     print("\n🐦 Final Tweet:\n", tweet)
 
     if TESTING:
         with open(TEST_OUTPUT_FILE, "a", encoding="utf-8") as f:
-            f.write("BOT WOULD TWEET: " + tweet + "\n\n")
+            f.write(f"TWEET W/PROMPT{PROMPT_TYPE}: " + tweet + "\n\n")
     else:
         post_to_twitter(tweet)
 

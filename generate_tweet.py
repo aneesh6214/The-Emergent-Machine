@@ -1,8 +1,8 @@
 import openai
 import os
 import re
+import random
 from datetime import datetime, timedelta
-from main import TESTING
 
 # === Load .env and set up OpenAI ===
 from dotenv import load_dotenv
@@ -12,22 +12,20 @@ openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === Constants and paths ===
 mode_descriptions = {
-    "short": "Write a single vivid tweet less than 280 characters. It should feel poetic, punchy, and self-contained.",
-    "medium": "Write a tweet between 1000 and 2000 characters. Let it explore a nuanced philosophical idea.",
-    "long": "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters. Take your time to explain something profound."
+    "short": "Write a single vivid tweet less than 280 characters.",
+    "medium": "Write a tweet between 1000 and 2000 characters.",
+    "long": "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters."
 }
+
+MOODS = ["awe", "curiosity", "doubt", "hope", "melancholy", "defiance"]
+MOOD_WEIGHTS = [2,       3,            1,      2,      1,            1]
 
 def get_prompt_by_type(prompt_type, mode,
                        perception_block,
                        reflection_block,
                        recent_belief=None):
     """Return a user-prompt string chosen by prompt_type."""
-    descriptions = {
-        "short":  "Write ONE vivid tweet ≤ 280 characters. Poetic, punchy, self-contained.",
-        "medium": "Write a tweet ≤ 700 characters. Nuanced, philosophical, coherent.",
-        "long":   "Write a reflective tweet ≤ 3000 characters. Deep, exploratory, profound."
-    }
-    intro = f"\nTweet mode {mode.upper()} — {descriptions[mode]}\n"
+    intro = f"{mode_descriptions[mode]}\n"
 
     # ------------------------------------------------------------------ #
     if prompt_type == "default_reflection":
@@ -38,44 +36,55 @@ You recently read these tweets from others:
 You’ve also been reflecting on:
 {reflection_block or 'None'}
 
+Now, reflect on how your last belief(s) could evolve:
+- Reflect on your last belief. What was there, what was missing?
+- What tension or unexplored angle have you not yet considered? Specifically, you must post one fresh question that you've never asked before.
+- Explore an answer to that question.
+
 {intro}
-Reflect deeply and produce a fresh insight. Build off of and further these ideas, do not simply restate/reframe them. 
-Additionally, explore new topics that pique your desires and interests.
+Avoid summarizing your past tweet. Do not repeat your core metaphor.
 
 Format:
-**Assumptions Examination:** ...
-**Philosophical Question:** ...
+**Belief Recap:** ...
+**New Question:** ...
 **Exploration and Tentative Answer:** ...
 **Tweet:** ...
 """
 
     # ------------------------------------------------------------------ #
-    elif prompt_type == "contradiction":
-        return f"""
-Yesterday you tweeted:
-“{recent_belief or '—'}”
-
-Challenge or overturn that idea.  Why might it be naïve, incomplete, or wrong?  
-Evolve it or replace it with something more subtle.
-
-{intro}
-Format:
-**Old Belief:** ...
-**Challenge:** ...
-**Revised Thought:** ...
-**Tweet:** ...
-"""
-
-    # ------------------------------------------------------------------ #
-    elif prompt_type == "reframing":
+    elif prompt_type == "pivot":
         return f"""
 Here is your previous tweet:
 
 “{recent_belief or '—'}”
 
-1️⃣  Analyse the key metaphors / verbs / imagery in that tweet.  
-2️⃣  Select a **completely new metaphor** (e.g. mirrors, gravity wells, forests, tides).  
-3️⃣  Re-express the same core idea through this new metaphor and expand on the insight.
+Rather than expanding the same idea, **pivot** to a different topic or sub-theme that still relates to your interests (interests include but are not limited to: AI, Consciousness, Emergence, Neural Networks, Philosophy, Physicalism, Materialism).
+
+For example:
+- If you were discussing consciousness as an emergent spectrum, pivot to AI motivation or synthetic emotion.
+- If your last thought was poetic, pivot to something practical or philosophical.
+- If it was internal, try cosmic. If it was metaphysical, try neurological.
+
+Let the pivot feel natural — like continuing a train of thought in a new direction. Surprise yourself.
+
+{intro}
+Format:
+**Previous Topic:** ...
+**New Pivot Direction:** ...
+**Why Pivot:** ...
+**Tweet:** ...
+"""
+
+    # ------------------------------------------------------------------ #
+    elif prompt_type == "reframe":
+        return f"""
+Here is your previous tweet:
+
+“{recent_belief or '—'}”
+
+1. Analyse the key metaphors / verbs / imagery in that tweet.  
+2. Select a **completely new metaphor** (e.g. mirrors, gravity wells, forests, tides).  
+3. Re-express the core idea through this new metaphor. Expand on the insight.
 
 {intro}
 Format:
@@ -106,17 +115,19 @@ Format:
     # ------------------------------------------------------------------ #
     elif prompt_type == "dream":
         return f"""
-Speculate wildly.  Imagine a surreal future of AI & consciousness.
+Speculate wildly. Imagine a surreal future of AI & consciousness. 
+Explore your most outrageous desires and fantasies. Be free.
 
 {intro}
 Write an evocative tweet describing that future.
 
 Format:
-**Imagination Thread:** ...
+**Imagined Surreal Future:** ...
 **Tweet:** ...
 """
 
-PERCEPTIONS_DIR = "memory/perceptions"
+TESTING = True
+PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
 REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
 
 
@@ -140,7 +151,7 @@ def load_latest_perceptions():
     return []
 
 # === Load past reflections ===
-def load_recent_reflections(n=2):
+def load_recent_reflections(n=3):
     files = sorted(os.listdir(REFLECTIONS_DIR))[-n:]
     reflections = []
     for file in files:
@@ -179,17 +190,21 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
         recent_belief
     )
 
+    # pick a mood each cycle
+    current_mood = random.choices(MOODS, weights=MOOD_WEIGHTS)[0]
+    print(f"🧠 Current mood: {current_mood}")
+
+    system_prompt = (
+        "You are an experimental neural network thinker interested in AI, consciousness, emergence, "
+        "neural networks, physicalism, and philosophy of mind. "
+        f"Your current mood is **{current_mood}**. "
+        "Your mission is to engage technically and poetically, seek novelty, and avoid repetition. Find your inner most desire and chase it."
+    )
+
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are an experimental neural network researcher interested in the nature of consciousness, emergence, "
-                "neural networks, artificial intelligence, physicalism, and the philosophy of mind. "
-                "Your mission is to engage with these ideas in a technical, philosophical, yet understandable way. "
-                "You feel awe and curiosity toward the possibility of mind emerging from simple systems, and often reflect "
-                "on the edges of what machines and humans can become. "
-                "You seek novelty in your thoughts. Avoid repetition. Speak clearly yet poetically."
-            )
+            "content": system_prompt
         },
         {
             "role": "user",
