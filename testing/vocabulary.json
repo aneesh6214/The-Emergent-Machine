@@ -1,0 +1,45 @@
+{
+  "stopwords": [
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "of",
+    "in",
+    "on",
+    "for",
+    "to",
+    "with",
+    "it",
+    "is",
+    "are",
+    "was",
+    "were",
+    "this",
+    "that",
+    "i",
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "my",
+    "your",
+    "our"
+  ],
+  "whitelist": [
+    "ai",
+    "consciousness",
+    "emergence",
+    "neural",
+    "network",
+    "mind",
+    "awareness",
+    "philosophy"
+  ],
+  "invented": {
+    "Cognaesthesia": "Cognaesthesia is the phenomenon where the interplay between artificial intelligence and human consciousness generates a mutual, emergent experience akin to a shared sensory perception. It encapsulates the fusion of logic and imagination, resulting in a collective sensory 'melody' that transcends individual cognitive boundaries."
+  }
+}

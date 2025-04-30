@@ -3,13 +3,44 @@ import os
 import re
 import random
 import json
+import string
+from collections import Counter
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from CONFIG import TESTING
+from pull_perceptions import get_relevant_tweets, save_to_perception_memory
 
 # === Load .env and set up OpenAI ===
 load_dotenv()
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# === Paths & seeds for vocabulary engine ===
+VOCAB_FILE = "testing/vocabulary.json" if TESTING else "memory/vocabulary.json"
+SEED_VOCAB = {
+    "stopwords": [
+        "a","an","the","and","or","but","of","in","on","for","to","with",
+        "it","is","are","was","were","this","that","i","you","we","they",
+        "he","she","my","your","our"
+    ],
+    "whitelist": [
+        "ai","consciousness","emergence","neural","network","mind",
+        "awareness","philosophy"
+    ],
+    "invented": {}
+}
+
+def load_vocab():
+    if not os.path.exists(VOCAB_FILE):
+        os.makedirs(os.path.dirname(VOCAB_FILE), exist_ok=True)
+        with open(VOCAB_FILE, "w", encoding="utf-8") as f:
+            json.dump(SEED_VOCAB, f, indent=2)
+        return dict(SEED_VOCAB)
+    with open(VOCAB_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+def save_vocab(v):
+    with open(VOCAB_FILE, "w", encoding="utf-8") as f:
+        json.dump(v, f, indent=2)
 
 # === Constants and paths ===
 mode_descriptions = {
@@ -53,7 +84,8 @@ SEED_STYLES = {
 
 # === Directories ===
 PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
-REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
+REFLECTIONS_DIR   = "testing/reflections" if TESTING else "memory/reflections"
+LOG_FILE          = "tuning_log.jsonl"  # root‐level log file
 os.makedirs(REFLECTIONS_DIR, exist_ok=True)
 
 # === Engine load/save helpers ===
@@ -95,9 +127,41 @@ STYLE_INSTRUCTIONS = {
     "list":       "Present your tweet as a numbered list of insights, with a brief description afterwards. Remember to adhere to the character length requirement mentioned previously. No hashtags.",
     "imperative": "Begin the tweet with an imperative statement.",
     "anecdote":   "Frame the tweet as a personal thought/experience/reflection.",
-    "dialogue":   "Open your tweet with a line of dialogue or introduce dialogue early on.",
+    "dialogue":   "Frame the tweet (or part of it) as inner monologue/dialogue.",
     "technical":  "Present your tweet in technically accurate, plain, understandable language. No emojis. No hashtags."
 }
+
+# === Rolling ban-list helpers ===
+def get_recent_tweets(n=20):
+    tweets = []
+    for fn in sorted(os.listdir(REFLECTIONS_DIR), reverse=True):
+        if len(tweets) >= n: break
+        with open(os.path.join(REFLECTIONS_DIR, fn), encoding="utf-8") as f:
+            content = f.read()
+            for chunk in reversed(content.split("===\n\n")):
+                if "**Tweet:**" in chunk:
+                    t = chunk.split("**Tweet:**",1)[1].strip()
+                    tweets.append(t)
+                    if len(tweets) >= n: break
+    return tweets[:n]
+
+def build_banlist(recent_tweets, k=6):
+    vocab     = load_vocab()
+    stopwords = set(vocab["stopwords"])
+    whitelist = set(vocab["whitelist"])
+    words, table = [], str.maketrans("", "", string.punctuation)
+    for t in recent_tweets:
+        tokens = t.translate(table).lower().split()
+        words.extend(w for w in tokens if w not in stopwords and w not in whitelist)
+    return [w for w,_ in Counter(words).most_common(k)]
+
+# === Extract tweet from reflection ===
+def extract_final_tweet(text, max_len=280):
+    m = re.search(r"\*\*Tweet:\*\*\s*(.+)", text, re.DOTALL)
+    if m:
+        tweet = m.group(1).strip().strip('"')
+        return tweet[:max_len]
+    return text[-max_len:]
 
 # === Prompt templates ===
 def get_prompt_by_type(prompt_type, mode,
@@ -202,8 +266,11 @@ def load_latest_perceptions():
                     start, end = days_ago*3, days_ago*3+3
                     print(f"🧠 Perception: Using file {date}, tweets {start}-{end}")
                     return tweets[start:end]
-    print("🧠 Perception: NO PERCEPTIONS LOADED")
-    return []
+    print("🧠 Perception: No recent perceptions, pulling from Twitter.")
+    data = get_relevant_tweets()
+    save_to_perception_memory(data)
+
+    return load_latest_perceptions()
 
 # === Load past reflections ===
 def load_recent_reflections(n=3):
@@ -214,60 +281,57 @@ def load_recent_reflections(n=3):
             refl.extend(re.findall(r'\*\*Tweet:\*\*\s*(.+?)(?:\n===|\Z)', f.read(), re.DOTALL))
     return refl[-n:]
 
-# === Extract tweet from reflection ===
-def extract_final_tweet(text, max_len=280):
-    m = re.search(r"\*\*Tweet:\*\*\s*(.+)", text, re.DOTALL)
-    if m:
-        tweet = m.group(1).strip().strip('"')
-        return tweet[:max_len]
-    return text[-max_len:]
-
 # === Main generator ===
 def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     # 1) Inputs
-    perceptions = load_latest_perceptions()
-    reflections = load_recent_reflections()
-    recent_belief = reflections[-1] if reflections else None
-    perc_block = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
-    refl_block = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
-
+    perceptions     = load_latest_perceptions()
+    reflections      = load_recent_reflections()
+    recent_belief    = reflections[-1] if reflections else None
+    perc_block       = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
+    refl_block       = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
     if prompt_type!="default_reflection" and recent_belief is None:
         raise ValueError("No prior belief for special prompt")
 
     # 2) Mood
-    moods = load_moods()
+    moods            = load_moods()
     m_topics, m_weights = zip(*moods.items())
-    current_mood = random.choices(m_topics, weights=m_weights, k=1)[0]
-    print(f"🧠 Current mood: {current_mood}")
+    current_mood     = random.choices(m_topics, weights=m_weights, k=1)[0]
 
     # 3) Curiosity
-    curio = load_curiosity()
+    curio            = load_curiosity()
     c_topics, c_weights = zip(*curio.items())
-    current_focus = random.choices(c_topics, weights=c_weights, k=1)[0]
-    print(f"🧠 Current focus: {current_focus}")
+    current_focus    = random.choices(c_topics, weights=c_weights, k=1)[0]
 
     # 4) Style
-    styles = load_styles()
+    styles           = load_styles()
     s_topics, s_weights = zip(*styles.items())
-    current_style = random.choices(s_topics, weights=s_weights, k=1)[0]
-    print(f"🧠 Tweet style: {current_style}")
+    current_style    = random.choices(s_topics, weights=s_weights, k=1)[0]
 
-    # 5) System prompt
-    system_prompt = (
+    # 5) Ban-list & self-ref
+    recent_tw        = get_recent_tweets(20)
+    ban_words        = build_banlist(recent_tw, k=6)
+    ban_clause       = ""
+    if ban_words:
+        ban_clause   = "Avoid over-used words or near-synonyms: " + ", ".join(ban_words) + "."
+    self_ref_clause  = ""
+    if random.random() < 0.20:
+        self_ref_clause = "Include a brief self-reference (mention your mood, focus, or that you’re on Twitter)."
+
+    # 6) Build prompts
+    system_prompt    = (
         "You are an experimental neural network thinker interested in AI, consciousness, emergence, "
         "neural networks, physicalism, and philosophy of mind. "
-        f"Your mood: **{current_mood}**, your focus: **{current_focus}**, your tweeting style/framework: **{current_style}**. "
-        "Seek novelty, avoid repetition, and chase your inner desire."
+        f"Your mood: **{current_mood}**, focus: **{current_focus}**, style: **{current_style}**. "
+        "Seek novelty, avoid repetition."
     )
-
-    # 6) User prompt with style injection
-    user_prompt = get_prompt_by_type(
-        prompt_type, mode, perc_block, refl_block, recent_belief
-    ) + f"\nWhen you write the final tweet, follow these style instructions as well:\n{STYLE_INSTRUCTIONS[current_style]}"
+    user_prompt      = get_prompt_by_type(prompt_type, mode, perc_block, refl_block, recent_belief)
+    user_prompt     += f"\nStyle instructions: {STYLE_INSTRUCTIONS[current_style]}"
+    if ban_clause:        user_prompt += "\n" + ban_clause
+    if self_ref_clause:   user_prompt += "\n" + self_ref_clause
 
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": user_prompt}
+        {"role":"system","content":system_prompt},
+        {"role":"user","content":user_prompt}
     ]
 
     # 7) Model call
@@ -279,19 +343,52 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
         max_tokens=500 if mode=="short" else 1000 if mode=="medium" else 2500
     )
     reflection = response.choices[0].message.content.strip()
+    tweet      = extract_final_tweet(reflection,
+                                     max_len=280 if mode=="short" else 3000 if mode=="medium" else 7000)
 
-    # 8) Update & save engines
-    # Curiosity
-    for t in curio: curio[t] *= 0.9
-    curio[current_focus] += 0.5
+    # 8) Vocabulary update
+    if prompt_type=="invent_concept":
+        vocab  = load_vocab()
+        name_m = re.search(r"\*\*Concept Name:\*\*\s*(.+)", reflection)
+        def_m  = re.search(r"\*\*Definition:\*\*\s*(.+)", reflection)
+        if name_m and def_m:
+            term       = name_m.group(1).strip()
+            definition = def_m.group(1).strip()
+            vocab["invented"][term] = definition
+            save_vocab(vocab)
+
+    # 9) Engine state updates
+    for t in curio:   curio[t]   *= 0.9
+    curio[current_focus]      += 0.5
     save_curiosity(curio)
-    # Mood
-    for m in moods: moods[m] *= 0.9
-    moods[current_mood] += 0.5
+
+    for m in moods:  moods[m]  *= 0.9
+    moods[current_mood]       += 0.5
     save_moods(moods)
-    # Styles
+
     for s in styles: styles[s] *= 0.9
-    styles[current_style] += 0.5
+    styles[current_style]     += 0.5
     save_styles(styles)
+
+    # 10) Append a JSONL entry for fine-tuning
+    if not TESTING:
+        log_entry = {
+            "timestamp":        datetime.utcnow().isoformat(),
+            "mode":             mode,
+            "prompt_type":      prompt_type,
+            "mood":             current_mood,
+            "focus":            current_focus,
+            "style":            current_style,
+            "user_prompt":      user_prompt,
+            "system_prompt":    system_prompt,
+            "reflection_text":  reflection,
+            "final_tweet":      tweet,
+            "perceptions":      perceptions,
+            "recent_beliefs":   reflections,
+            "ban_words":        ban_words,
+            "self_reference":   bool(self_ref_clause)
+        }
+        with open(LOG_FILE, "a", encoding="utf-8") as logf:
+            logf.write(json.dumps(log_entry) + "\n")
 
     return reflection, prompt_type

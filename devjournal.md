@@ -3,7 +3,7 @@ Lets give an LLM the capabilities to post on twitter, along with some initial id
 What emergent behaviors arise, what enable them? Can we cultivate an emergent personality?
 An agentic personality that evolves overtime?
 
-# Entry 1 - Core Tweet Gen
+# Entry 1 - Basic Tweet Gen
 generate tweets simply from a prompt.
 implement rudimentary memory system to make sure model "knows about" its past tweets.
 prompt the model to reflect about a topic and generate a tweet
@@ -19,6 +19,7 @@ added:
 - tweet length mode (short/medium/long)
 - reader.py script to pull 10 most recent posts into memory/perceptions/DATE.txt
 - bot is fed perceptions (0-3 if DATE = TODAY, 3-6 if DATE = YDAY, 6-9 if DATE = 2DAYAGO)
+- pull perceptions if no recent enough perceptions (this was actually added during Entry 3)
 - Testing flag (uses info from and generates tweets into testing directory)
 
 todo/ideas:
@@ -27,4 +28,21 @@ todo/ideas:
 - topics/themes engine/picker
 - detect conflicting ideas in reflections and have bot resolve (cognitive dissonance -> emergent behavior?)
 
-# Entry 3 - Thinking Behaviors 
+# Entry 3 - Thinking Behaviors (Core Tweet Generation)
+- quick refactor into main.py + generate_tweet
+- added prompt types
+- added selector (selects random mood), need to make engine w/weights (with starting seeds)
+- added curiosity engine (with starting seeds)
+- moods engine
+- vocab engine
+- tweet style engine
+- 20% self reflective tweets
+
+Core tweet gen is mostly done. Most other diversities will come from perception layer.
+Quickly added: more random timing in tweets + log (for fine tune later)
+About to run a test with core tweet gen.
+
+Next steps: Agent behaviors
+- vector search for memory (long term beliefs, associative memory)
+- propose new tweet styles/moods/curioisities/vocab
+- desire engine (from seed) + spawn goals and subgoals based on desires

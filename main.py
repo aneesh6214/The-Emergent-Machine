@@ -10,15 +10,17 @@ from CONFIG import TESTING
 load_dotenv()
 
 # === Configuration ===
-HOURS = 20 # Total number of tweet cycles
-#PROMPT_TYPE = "default_reflection"
-#PROMPT_TYPE = "contradict"
-#PROMPT_TYPE = "reframe"
-#PROMPT_TYPE = "invent_concept"
-#PROMPT_TYPE = "dream"
-# TESTING = True
+HOURS  = 5    # total window in hours
+TWEETS = 10   # total number of tweets to post over that window
 
-REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
+# compute total window in seconds
+total_window = HOURS * 3600
+
+# generate TWEETS random timestamps (in seconds) within [0, total_window)
+# sorted so we know how long to sleep between posts
+schedule = sorted(random.uniform(0, total_window) for _ in range(TWEETS))
+
+REFLECTIONS_DIR  = "testing/reflections" if TESTING else "memory/reflections"
 TEST_OUTPUT_FILE = "testing/test_tweets.txt"
 os.makedirs(REFLECTIONS_DIR, exist_ok=True)
 
@@ -40,24 +42,52 @@ def post_to_twitter(tweet_text):
 
 ALT_PROMPT_TYPES = ["pivot", "reframe", "invent_concept", "dream"]
 
-# === Main tweet loop ===
-for i in range(HOURS):
-    print(f"\n--- Tweet Cycle {i+1}/{HOURS} ---")
+# counters for default-vs-special sequencing
+defaults_since_special = 0
+next_special_in       = random.randint(1, 3)
 
+# track the last event time (in seconds from start)
+last_time = 0.0
+
+print(f"Scheduling {TWEETS} tweets randomly over {HOURS} hours (total {int(total_window)}s).")
+for i, event_time in enumerate(schedule, start=1):
+    # how long to sleep from now
+    wait = event_time - last_time
+    last_time = event_time
+
+    print(f"\n--- Scheduled Tweet {i}/{TWEETS} at +{int(event_time)}s (wait {int(wait)}s) ---")
+
+    if not TESTING:
+        print(f"⏳ Sleeping for {int(wait)}s until next tweet...\n")
+        time.sleep(wait)
+    else:
+        print("⏩ (testing mode — skipping sleep)\n")
+
+    # 1) choose length mode
     mode = random.choices(["short", "medium", "long"], weights=[0.6, 0.3, 0.1])[0]
     print(f"🧠 Mode: {mode.upper()}")
 
+    # 2) load recent reflections
     reflections = load_recent_reflections()
 
+    # 3) decide prompt type: 1–3 defaults, then one special
     if not reflections:
         PROMPT_TYPE = "default_reflection"
-        print("🧠 Reflection memory empty — forcing default prompt.")
-    elif random.random() < 0.45:
-        PROMPT_TYPE = random.choice(ALT_PROMPT_TYPES)
-    else:
-        PROMPT_TYPE = "default_reflection"
+        defaults_since_special += 1
 
-    print("🧠 Prompt type:", PROMPT_TYPE)
+    elif defaults_since_special < next_special_in:
+        PROMPT_TYPE = "default_reflection"
+        defaults_since_special += 1
+
+    else:
+        PROMPT_TYPE = random.choice(ALT_PROMPT_TYPES)
+        defaults_since_special = 0
+        next_special_in       = random.randint(1, 3)
+
+    print(f"🧠 Prompt type: {PROMPT_TYPE} "
+          f"(defaults since special: {defaults_since_special}/{next_special_in})")
+
+    # 4) generate reflection + tweet
     reflection, _ = generate_reflective_tweet(mode=mode, prompt_type=PROMPT_TYPE)
     print("\n🧠 Reflection:\n", reflection)
 
@@ -65,20 +95,17 @@ for i in range(HOURS):
     tweet = extract_final_tweet(reflection, max_len=limit)
     print("\n🐦 Final Tweet:\n", tweet)
 
+    # 5) output or post
     if TESTING:
         with open(TEST_OUTPUT_FILE, "a", encoding="utf-8") as f:
             f.write(f"= Tweet - {PROMPT_TYPE} =: " + tweet + "\n\n")
     else:
         post_to_twitter(tweet)
 
-    # Save full reflection
-    today = datetime.now().strftime("%Y-%m-%d")
-    outfile = os.path.join(REFLECTIONS_DIR, f"{today}.txt")
-    with open(outfile, "a", encoding="utf-8") as f:
+    # 6) persist the full reflection
+    today   = datetime.now().strftime("%Y-%m-%d")
+    outpath = os.path.join(REFLECTIONS_DIR, f"{today}.txt")
+    with open(outpath, "a", encoding="utf-8") as f:
         f.write(reflection + "\n\n===\n\n")
 
-    if i < HOURS - 1 and not TESTING:
-        print("\n⏳ Sleeping for 1 hour...\n")
-        time.sleep(3600)
-    elif i < HOURS - 1 and TESTING:
-        print("\n⏩ Skipping sleep (testing mode)...\n")
+print("\n✅ All scheduled tweets have been generated.")
