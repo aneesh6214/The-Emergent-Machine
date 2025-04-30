@@ -10,7 +10,7 @@ from CONFIG import TESTING
 load_dotenv()
 
 # === Configuration ===
-HOURS = 10 # Total number of tweet cycles
+HOURS = 20 # Total number of tweet cycles
 #PROMPT_TYPE = "default_reflection"
 #PROMPT_TYPE = "contradict"
 #PROMPT_TYPE = "reframe"
@@ -52,11 +52,12 @@ for i in range(HOURS):
     if not reflections:
         PROMPT_TYPE = "default_reflection"
         print("🧠 Reflection memory empty — forcing default prompt.")
-    elif random.random() < 0.4:
+    elif random.random() < 0.45:
         PROMPT_TYPE = random.choice(ALT_PROMPT_TYPES)
     else:
         PROMPT_TYPE = "default_reflection"
 
+    print("🧠 Prompt type:", PROMPT_TYPE)
     reflection, _ = generate_reflective_tweet(mode=mode, prompt_type=PROMPT_TYPE)
     print("\n🧠 Reflection:\n", reflection)
 
@@ -66,7 +67,7 @@ for i in range(HOURS):
 
     if TESTING:
         with open(TEST_OUTPUT_FILE, "a", encoding="utf-8") as f:
-            f.write(f"TWEET W/PROMPT{PROMPT_TYPE}: " + tweet + "\n\n")
+            f.write(f"= Tweet - {PROMPT_TYPE} =: " + tweet + "\n\n")
     else:
         post_to_twitter(tweet)
 

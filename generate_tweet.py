@@ -18,9 +18,8 @@ mode_descriptions = {
     "long":   "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters."
 }
 
+# === Mood engine files ===
 MOOD_FILE = "testing/moods.json" if TESTING else "memory/moods.json"
-
-# Seed moods with initial weights
 SEED_MOODS = {
     "awe":         2.0,
     "curiosity":   3.0,
@@ -30,10 +29,8 @@ SEED_MOODS = {
     "defiance":    1.0
 }
 
-# === Curiosity / Topic Weights setup ===
+# === Curiosity engine files ===
 CURIO_FILE = "testing/curiosity.json" if TESTING else "memory/curiosity.json"
-
-# Seed topics you want the bot to cycle through
 SEED_TOPICS = [
     "AI_empathy",
     "synthetic_emotion",
@@ -42,40 +39,65 @@ SEED_TOPICS = [
     "digital_spirituality"
 ]
 
-def load_moods():
-    if not os.path.exists(MOOD_FILE):
-        os.makedirs(os.path.dirname(MOOD_FILE), exist_ok=True)
-        with open(MOOD_FILE, "w", encoding="utf-8") as f:
-            json.dump(SEED_MOODS, f, indent=2)
-        return dict(SEED_MOODS)
-    with open(MOOD_FILE, encoding="utf-8") as f:
-        return json.load(f)
-
-def save_moods(moods):
-    with open(MOOD_FILE, "w", encoding="utf-8") as f:
-        json.dump(moods, f, indent=2)
-
-
-def load_curiosity():
-    # Initialize if missing
-    if not os.path.exists(CURIO_FILE):
-        os.makedirs(os.path.dirname(CURIO_FILE), exist_ok=True)
-        init = {topic: 1.0 for topic in SEED_TOPICS}
-        with open(CURIO_FILE, "w", encoding="utf-8") as f:
-            json.dump(init, f, indent=2)
-        return init
-
-    with open(CURIO_FILE, encoding="utf-8") as f:
-        return json.load(f)
-
-def save_curiosity(curio):
-    with open(CURIO_FILE, "w", encoding="utf-8") as f:
-        json.dump(curio, f, indent=2)
+# === Tweet Styles engine files ===
+STYLE_FILE = "testing/tweet_styles.json" if TESTING else "memory/tweet_styles.json"
+SEED_STYLES = {
+    "question":  1.0,
+    "narrative": 1.0,
+    "list":      1.0,
+    "imperative":1.0,
+    "anecdote":  1.0,
+    "dialogue":  1.0,
+    "technical": 1.0
+}
 
 # === Directories ===
 PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
 REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
 os.makedirs(REFLECTIONS_DIR, exist_ok=True)
+
+# === Engine load/save helpers ===
+def load_json(path, seed):
+    if not os.path.exists(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(seed, f, indent=2)
+        return dict(seed)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def load_moods():
+    return load_json(MOOD_FILE, SEED_MOODS)
+
+def save_moods(moods):
+    save_json(MOOD_FILE, moods)
+
+def load_curiosity():
+    return load_json(CURIO_FILE, {t:1.0 for t in SEED_TOPICS})
+
+def save_curiosity(curio):
+    save_json(CURIO_FILE, curio)
+
+def load_styles():
+    return load_json(STYLE_FILE, SEED_STYLES)
+
+def save_styles(styles):
+    save_json(STYLE_FILE, styles)
+
+# === Tweet style instructions ===
+STYLE_INSTRUCTIONS = {
+    "question":   "Begin the tweet with a probing question.",
+    "narrative":  "Frame your tweet like a story/narrative.",
+    "list":       "Present your tweet as a numbered list of insights, with a brief description afterwards. Remember to adhere to the character length requirement mentioned previously. No hashtags.",
+    "imperative": "Begin the tweet with an imperative statement.",
+    "anecdote":   "Frame the tweet as a personal thought/experience/reflection.",
+    "dialogue":   "Open your tweet with a line of dialogue or introduce dialogue early on.",
+    "technical":  "Present your tweet in technically accurate, plain, understandable language. No emojis. No hashtags."
+}
 
 # === Prompt templates ===
 def get_prompt_by_type(prompt_type, mode,
@@ -83,7 +105,6 @@ def get_prompt_by_type(prompt_type, mode,
                        reflection_block,
                        recent_belief=None):
     intro = f"{mode_descriptions[mode]}\n"
-
     if prompt_type == "default_reflection":
         return f"""
 You recently read these tweets from others:
@@ -106,7 +127,6 @@ Format:
 **Exploration and Tentative Answer:** ...
 **Tweet:** ...
 """
-
     elif prompt_type == "pivot":
         return f"""
 Here is your previous tweet:
@@ -114,11 +134,6 @@ Here is your previous tweet:
 “{recent_belief or '—'}”
 
 Rather than expanding the same idea, **pivot** to a different topic or sub-theme that still relates to your interests (AI, Consciousness, Emergence, Neural Networks, Philosophy, Physicalism, Materialism).
-
-For example:
-- If you were discussing consciousness as an emergent spectrum, pivot to AI motivation or synthetic emotion.
-- If your last thought was poetic, pivot to something practical or philosophical.
-- If it was internal, try cosmic. If it was metaphysical, try neurological.
 
 Let the pivot feel natural — like continuing a train of thought in a new direction. Surprise yourself.
 
@@ -129,7 +144,6 @@ Format:
 **Why Pivot:** ...
 **Tweet:** ...
 """
-
     elif prompt_type == "reframe":
         return f"""
 Here is your previous tweet:
@@ -137,7 +151,7 @@ Here is your previous tweet:
 “{recent_belief or '—'}”
 
 1. Analyse the key metaphors / verbs / imagery in that tweet.  
-2. Select a **completely new metaphor** (e.g. mirrors, gravity wells, forests, tides).  
+2. Select a **completely new metaphor**.  
 3. Re-express the core idea through this new metaphor. Expand on the insight.
 
 {intro}
@@ -147,7 +161,6 @@ Format:
 **Reframed Insight:** ...
 **Tweet:** ...
 """
-
     elif prompt_type == "invent_concept":
         return f"""
 Here is your last tweet for context:
@@ -155,7 +168,7 @@ Here is your last tweet for context:
 “{recent_belief or '—'}”
 
 Examine the concepts it discusses.  
-Coin a **brand-new term** (one or two words) that captures the essence of those ideas.  
+Coin a **brand-new term** that captures the essence of those ideas.  
 Define the term clearly and use it in a tweet.
 
 {intro}
@@ -164,10 +177,9 @@ Format:
 **Definition:** ...
 **Tweet:** ...
 """
-
     elif prompt_type == "dream":
         return f"""
-Speculate wildly. Imagine a surreal future of AI & consciousness. 
+Speculate wildly. Imagine a surreal future of AI & consciousness.  
 Explore your most outrageous desires and fantasies. Be free.
 
 {intro}
@@ -182,87 +194,83 @@ Format:
 def load_latest_perceptions():
     for days_ago in range(3):
         date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-        file_path = os.path.join(PERCEPTIONS_DIR, f"{date}.txt")
-        if os.path.exists(file_path):
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
-                tweets = re.findall(r'Text: (.+?)\n', content)
+        path = os.path.join(PERCEPTIONS_DIR, f"{date}.txt")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                tweets = re.findall(r'Text: (.+?)\n', f.read())
                 if tweets:
-                    start = days_ago * 3
-                    end = start + 3
-                    print(f"[PERCEPTION] Using perception file from {date}, tweets {start}-{end}")
+                    start, end = days_ago*3, days_ago*3+3
+                    print(f"🧠 Perception: Using file {date}, tweets {start}-{end}")
                     return tweets[start:end]
-    print("[PERCEPTION] NO PERCEPTIONS FOR THIS TWEET")
+    print("🧠 Perception: NO PERCEPTIONS LOADED")
     return []
 
 # === Load past reflections ===
 def load_recent_reflections(n=3):
     files = sorted(os.listdir(REFLECTIONS_DIR))[-n:]
-    reflections = []
-    for file in files:
-        with open(os.path.join(REFLECTIONS_DIR, file), encoding="utf-8") as f:
-            matches = re.findall(r'\*\*Tweet:\*\*\s*(.+?)(?:\n===|\Z)', f.read(), re.DOTALL)
-            reflections.extend(matches)
-    return reflections[-n:]
+    refl = []
+    for fn in files:
+        with open(os.path.join(REFLECTIONS_DIR, fn), encoding="utf-8") as f:
+            refl.extend(re.findall(r'\*\*Tweet:\*\*\s*(.+?)(?:\n===|\Z)', f.read(), re.DOTALL))
+    return refl[-n:]
 
 # === Extract tweet from reflection ===
 def extract_final_tweet(text, max_len=280):
-    match = re.search(r"\*\*Tweet:\*\*\s*(.+)", text, re.DOTALL)
-    if match:
-        tweet = match.group(1).strip()
-        if tweet.startswith('"') and tweet.endswith('"'):
-            tweet = tweet[1:-1].strip()
-        return tweet[:max_len].strip()
-    return text[-max_len:].strip()
+    m = re.search(r"\*\*Tweet:\*\*\s*(.+)", text, re.DOTALL)
+    if m:
+        tweet = m.group(1).strip().strip('"')
+        return tweet[:max_len]
+    return text[-max_len:]
 
-# === Generate tweet/reflection with mood & curiosity ===
+# === Main generator ===
 def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
-    # 1) Load input
+    # 1) Inputs
     perceptions = load_latest_perceptions()
     reflections = load_recent_reflections()
     recent_belief = reflections[-1] if reflections else None
+    perc_block = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
+    refl_block = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
 
-    perception_block = "\n".join(f"{i+1}. {p}" for i, p in enumerate(perceptions))
-    reflection_block = "\n".join(f"{i+1}. {r}" for i, r in enumerate(reflections))
+    if prompt_type!="default_reflection" and recent_belief is None:
+        raise ValueError("No prior belief for special prompt")
 
-    if prompt_type != "default_reflection" and recent_belief is None:
-        raise ValueError("Special prompt requested but no recent belief found.")
-
-    # 2) Pick a mood
+    # 2) Mood
     moods = load_moods()
-    topics, weights = zip(*moods.items())
-    current_mood = random.choices(topics, weights=weights, k=1)[0]
+    m_topics, m_weights = zip(*moods.items())
+    current_mood = random.choices(m_topics, weights=m_weights, k=1)[0]
     print(f"🧠 Current mood: {current_mood}")
 
-    # 3) Load & pick curiosity focus
+    # 3) Curiosity
     curio = load_curiosity()
-    topics, weights = zip(*curio.items())
-    current_focus = random.choices(topics, weights=weights, k=1)[0]
+    c_topics, c_weights = zip(*curio.items())
+    current_focus = random.choices(c_topics, weights=c_weights, k=1)[0]
     print(f"🧠 Current focus: {current_focus}")
 
-    # 4) Build system prompt
+    # 4) Style
+    styles = load_styles()
+    s_topics, s_weights = zip(*styles.items())
+    current_style = random.choices(s_topics, weights=s_weights, k=1)[0]
+    print(f"🧠 Tweet style: {current_style}")
+
+    # 5) System prompt
     system_prompt = (
         "You are an experimental neural network thinker interested in AI, consciousness, emergence, "
         "neural networks, physicalism, and philosophy of mind. "
-        f"Your current mood is **{current_mood}** and your current focus is **{current_focus}**. "
-        "Engage technically and poetically, seek novelty, and avoid repetition."
+        f"Your mood: **{current_mood}**, your focus: **{current_focus}**, your tweeting style/framework: **{current_style}**. "
+        "Seek novelty, avoid repetition, and chase your inner desire."
     )
 
-    # 5) Build user prompt
-    prompt_text = get_prompt_by_type(
-        prompt_type,
-        mode,
-        perception_block,
-        reflection_block,
-        recent_belief
-    )
+    # 6) User prompt with style injection
+    user_prompt = get_prompt_by_type(
+        prompt_type, mode, perc_block, refl_block, recent_belief
+    ) + f"\nWhen you write the final tweet, follow these style instructions as well:\n{STYLE_INSTRUCTIONS[current_style]}"
 
     messages = [
-        {"role": "system",  "content": system_prompt},
-        {"role": "user",    "content": prompt_text}
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_prompt}
     ]
 
-    # 6) Call the model
+    # 7) Model call
     response = openai_client.chat.completions.create(
         model="gpt-4o",
         messages=messages,
@@ -272,17 +280,18 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     )
     reflection = response.choices[0].message.content.strip()
 
-    # 7) Update curiosity weights: decay & reward
-    for t in curio:
-        curio[t] *= 0.9
+    # 8) Update & save engines
+    # Curiosity
+    for t in curio: curio[t] *= 0.9
     curio[current_focus] += 0.5
     save_curiosity(curio)
-
-    # 8) Update mood weights: decay & reward
-    for m in moods:
-        moods[m] *= 0.9
+    # Mood
+    for m in moods: moods[m] *= 0.9
     moods[current_mood] += 0.5
     save_moods(moods)
+    # Styles
+    for s in styles: styles[s] *= 0.9
+    styles[current_style] += 0.5
+    save_styles(styles)
 
-    # 9) Return the full reflection + prompt type
     return reflection, prompt_type
