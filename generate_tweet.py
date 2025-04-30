@@ -312,7 +312,7 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     ban_words        = build_banlist(recent_tw, k=6)
     ban_clause       = ""
     if ban_words:
-        ban_clause   = "Avoid over-used words or near-synonyms: " + ", ".join(ban_words) + "."
+        ban_clause   = "Avoid these words or metaphors involving these words. They are banned: " + ", ".join(ban_words) + "."
     self_ref_clause  = ""
     if random.random() < 0.20:
         self_ref_clause = "Include a brief self-reference (mention your mood, focus, or that you’re on Twitter)."

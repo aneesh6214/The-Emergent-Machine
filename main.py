@@ -18,7 +18,7 @@ total_window = HOURS * 3600
 
 # generate TWEETS random timestamps (in seconds) within [0, total_window)
 # sorted so we know how long to sleep between posts
-schedule = sorted(random.uniform(0, total_window) for _ in range(TWEETS))
+schedule = sorted([0.0] + [random.uniform(0, total_window) for _ in range(TWEETS - 1)])
 
 REFLECTIONS_DIR  = "testing/reflections" if TESTING else "memory/reflections"
 TEST_OUTPUT_FILE = "testing/test_tweets.txt"
@@ -55,7 +55,11 @@ for i, event_time in enumerate(schedule, start=1):
     wait = event_time - last_time
     last_time = event_time
 
-    print(f"\n--- Scheduled Tweet {i}/{TWEETS} at +{int(event_time)}s (wait {int(wait)}s) ---")
+    if i == 1:
+        wait = 0
+        print(f"\n--- Scheduled Tweet {i}/{TWEETS} at +0s (1st tweet) (wait {int(wait)}s) ---")
+    else:
+        print(f"\n--- Scheduled Tweet {i}/{TWEETS} at +{int(event_time)}s (wait {int(wait)}s) ---")
 
     if not TESTING:
         print(f"⏳ Sleeping for {int(wait)}s until next tweet...\n")
