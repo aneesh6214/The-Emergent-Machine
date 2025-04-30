@@ -10,8 +10,8 @@ from CONFIG import TESTING
 load_dotenv()
 
 # === Configuration ===
-HOURS  = 5    # total window in hours
-TWEETS = 10   # total number of tweets to post over that window
+HOURS  = 8    # total window in hours
+TWEETS = 12   # total number of tweets to post over that window
 
 # compute total window in seconds
 total_window = HOURS * 3600

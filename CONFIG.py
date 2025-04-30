@@ -1,1 +1,1 @@
-TESTING=True
+TESTING=False
