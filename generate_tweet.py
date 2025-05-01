@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from CONFIG import TESTING
 from pull_perceptions import get_relevant_tweets, save_to_perception_memory
+from memory_db import MemoryDB
 
 # === Load .env and set up OpenAI ===
 load_dotenv()
@@ -24,10 +25,13 @@ SEED_VOCAB = {
     ],
     "whitelist": [
         "ai","consciousness","emergence","neural","network","mind",
-        "awareness","philosophy"
+        "awareness","philosophy","understanding"
     ],
     "invented": {}
 }
+
+MEM_DIR = "testing/vector_store" if TESTING else "memory/vector_store"
+memory  = MemoryDB(MEM_DIR)
 
 def load_vocab():
     if not os.path.exists(VOCAB_FILE):
@@ -154,6 +158,31 @@ def build_banlist(recent_tweets, k=6):
         tokens = t.translate(table).lower().split()
         words.extend(w for w in tokens if w not in stopwords and w not in whitelist)
     return [w for w,_ in Counter(words).most_common(k)]
+
+def build_invented_terms_snippet(max_terms: int = 2) -> str:
+    """
+    Return a short, bullet-style snippet containing ≤ `max_terms`
+    term : definition pairs pulled from vocabulary.json →
+
+        • Sentient Synthesis – The process wherein …
+        • Affective Nexus – …
+
+    If no invented terms exist, returns an empty string.
+    """
+    vocab = load_vocab()
+    invented = vocab.get("invented", {})
+
+    if not invented:
+        return ""
+
+    # choose up to `max_terms` random terms
+    terms = random.sample(list(invented.items()),
+                          k=min(max_terms, len(invented)))
+
+    # build the snippet
+    lines = [f"• **{term}** – {definition}"
+             for term, definition in terms]
+    return "\n".join(lines)
 
 # === Extract tweet from reflection ===
 def extract_final_tweet(text, max_len=280):
@@ -288,7 +317,7 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     reflections      = load_recent_reflections()
     recent_belief    = reflections[-1] if reflections else None
     perc_block       = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
-    refl_block       = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
+    #refl_block       = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
     if prompt_type!="default_reflection" and recent_belief is None:
         raise ValueError("No prior belief for special prompt")
 
@@ -307,6 +336,10 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     s_topics, s_weights = zip(*styles.items())
     current_style    = random.choices(s_topics, weights=s_weights, k=1)[0]
 
+    # 4½) semantic recall -------------------------------------------------
+    retrieved_mem = memory.retrieve(current_focus.replace("_", " "), k=2)
+    refl_block = "\n".join(f"• {t[:300]}…" for t in retrieved_mem)  # trim for prompt
+
     # 5) Ban-list & self-ref
     recent_tw        = get_recent_tweets(20)
     ban_words        = build_banlist(recent_tw, k=6)
@@ -316,6 +349,10 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     self_ref_clause  = ""
     if random.random() < 0.20:
         self_ref_clause = "Include a brief self-reference (mention your mood, focus, or that you’re on Twitter)."
+    invented_words = build_invented_terms_snippet(max_terms=1)
+    invented_clause = ""
+    if invented_words:
+        invented_clause = f"You're welcome (but not required) to weave one of your own coined concepts into the tweet. Heres a refresher:\n{invented_words}"
 
     # 6) Build prompts
     system_prompt    = (
@@ -328,11 +365,15 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     user_prompt     += f"\nStyle instructions: {STYLE_INSTRUCTIONS[current_style]}"
     if ban_clause:        user_prompt += "\n" + ban_clause
     if self_ref_clause:   user_prompt += "\n" + self_ref_clause
+    if invented_clause:   user_prompt += "\n" + invented_clause
+
 
     messages = [
         {"role":"system","content":system_prompt},
         {"role":"user","content":user_prompt}
     ]
+
+    print("===\nPROMPTING WITH PROMPT -->", user_prompt)
 
     # 7) Model call
     response = openai_client.chat.completions.create(
@@ -345,6 +386,8 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     reflection = response.choices[0].message.content.strip()
     tweet      = extract_final_tweet(reflection,
                                      max_len=280 if mode=="short" else 3000 if mode=="medium" else 7000)
+    
+    memory.add_memory(reflection, kind="reflection")
 
     # 8) Vocabulary update
     if prompt_type=="invent_concept":

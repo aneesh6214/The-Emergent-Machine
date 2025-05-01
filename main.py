@@ -10,8 +10,8 @@ from CONFIG import TESTING
 load_dotenv()
 
 # === Configuration ===
-HOURS  = 8    # total window in hours
-TWEETS = 12   # total number of tweets to post over that window
+HOURS  = 5    # total window in hours
+TWEETS = 5   # total number of tweets to post over that window
 
 # compute total window in seconds
 total_window = HOURS * 3600
@@ -49,6 +49,9 @@ next_special_in       = random.randint(1, 3)
 # track the last event time (in seconds from start)
 last_time = 0.0
 
+# print("RUNNING LOOP IN 3 MINUTES")
+# time.sleep(3 * 60)
+print("RUNNING LOOP NOW\n\n")
 print(f"Scheduling {TWEETS} tweets randomly over {HOURS} hours (total {int(total_window)}s).")
 for i, event_time in enumerate(schedule, start=1):
     # how long to sleep from now
@@ -86,7 +89,7 @@ for i, event_time in enumerate(schedule, start=1):
     else:
         PROMPT_TYPE = random.choice(ALT_PROMPT_TYPES)
         defaults_since_special = 0
-        next_special_in       = random.randint(1, 3)
+        next_special_in       = random.randint(1, 2)
 
     print(f"🧠 Prompt type: {PROMPT_TYPE} "
           f"(defaults since special: {defaults_since_special}/{next_special_in})")

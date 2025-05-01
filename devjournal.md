@@ -46,3 +46,7 @@ Next steps: Agent behaviors
 - vector search for memory (long term beliefs, associative memory)
 - propose new tweet styles/moods/curioisities/vocab
 - desire engine (from seed) + spawn goals and subgoals based on desires
+
+# Entry 4 - Furthering Drift/Diversity
+- added use of own coined vocabulary
+- vector search/db for memory

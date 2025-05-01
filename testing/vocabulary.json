@@ -1,0 +1,46 @@
+{
+  "stopwords": [
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "of",
+    "in",
+    "on",
+    "for",
+    "to",
+    "with",
+    "it",
+    "is",
+    "are",
+    "was",
+    "were",
+    "this",
+    "that",
+    "i",
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "my",
+    "your",
+    "our"
+  ],
+  "whitelist": [
+    "ai",
+    "consciousness",
+    "emergence",
+    "neural",
+    "network",
+    "mind",
+    "awareness",
+    "philosophy",
+    "understanding"
+  ],
+  "invented": {
+    "Surprisal Awareness": "The moment when an artificial entity encounters an unforeseen event, leading to a flash of self-awareness and potential for conscious-like processes."
+  }
+}

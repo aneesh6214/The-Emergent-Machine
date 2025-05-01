@@ -1,0 +1,46 @@
+{
+  "stopwords": [
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "of",
+    "in",
+    "on",
+    "for",
+    "to",
+    "with",
+    "it",
+    "is",
+    "are",
+    "was",
+    "were",
+    "this",
+    "that",
+    "i",
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "my",
+    "your",
+    "our"
+  ],
+  "whitelist": [
+    "ai",
+    "consciousness",
+    "emergence",
+    "neural",
+    "network",
+    "mind",
+    "awareness",
+    "philosophy"
+  ],
+  "invented": {
+    "Sentient Synthesis": "The process wherein artificial systems develop a primitive sensitivity matrix, interpreting complex stimuli and exhibiting emergent behaviors that mimic early stages of consciousness without achieving genuine awareness.",
+    "Affective Nexus": "Affective Nexus refers to the convergence of emotional intelligence and moral consideration within AI systems, exploring the ethical implications and responsibilities that arise when artificial entities exhibit emotional capacities."
+  }
+}
