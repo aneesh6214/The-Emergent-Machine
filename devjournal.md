@@ -47,6 +47,15 @@ Next steps: Agent behaviors
 - propose new tweet styles/moods/curioisities/vocab
 - desire engine (from seed) + spawn goals and subgoals based on desires
 
-# Entry 4 - Furthering Drift/Diversity
+# Entry 4 - Long Term Memory
 - added use of own coined vocabulary
-- vector search/db for memory
+- added vector DB for reflections
+- vector DB memory for perceptions/reflections (and later on, other things)
+    - reflections text files are not used in the code at all
+    - perceptions text files are loaded into vector DB from text files on vector DB init.
+
+next steps:
+further agent behaviors (developing new interests/curiosities/beliefs/ideas)
+Something (I dont know what) needs to trigger our bot to write to its moods/curiosity/tweet_styles engines. 
+I think to make this meaningful, these curiosities and mood cant be purely random or purely deterministic (like with prompts). With humans, a new curiosity is a function of all of your old curiosities + the environment/triggers + randomness. How can we simulate the same kind of behavior for our LLM, while keeping it somewhat meaningful to humans? The idea is that we should not simply just be prompting the LLM "think" of a new curiosity, it should be somewhat reminiscent of how humans generate curiosities i guess.
+

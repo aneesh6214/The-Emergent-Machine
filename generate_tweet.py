@@ -8,8 +8,9 @@ from collections import Counter
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from CONFIG import TESTING
-from pull_perceptions import get_relevant_tweets, save_to_perception_memory
+from pull_perceptions import get_relevant_tweets, write_to_perception_file
 from memory_db import MemoryDB
+from typing import Optional
 
 # === Load .env and set up OpenAI ===
 load_dotenv()
@@ -31,7 +32,35 @@ SEED_VOCAB = {
 }
 
 MEM_DIR = "testing/vector_store" if TESTING else "memory/vector_store"
+PERCEPTIONS_DIR  = "testing/perceptions" if TESTING else "memory/perceptions"
 memory  = MemoryDB(MEM_DIR)
+
+def init_perception_memory(mem: MemoryDB, perceptions_dir: str):
+    """
+    On a cold start (empty faiss index), scan every *.txt in perceptions_dir,
+    extract lines beginning 'Text: …', and add them as 'perception' memories.
+    """
+    # only do this once if the index is truly empty
+    if mem.index.ntotal > 0:
+        return
+
+    total = 0
+    for fn in sorted(os.listdir(perceptions_dir)):
+        if not fn.endswith(".txt"):
+            continue
+        path = os.path.join(perceptions_dir, fn)
+        content = open(path, encoding="utf-8").read()
+        # pull all Text: lines
+        for match in re.findall(r"^Text:\s*(.+)$", content, flags=re.MULTILINE):
+            text = match.strip()
+            if text:
+                mem.add_memory(text, kind="perception")
+                total += 1
+
+    print(f"✅ Bootstrapped {total} perceptions into vector memory (from {perceptions_dir}).")
+
+# call right after defining memory and dirs
+init_perception_memory(memory, PERCEPTIONS_DIR)
 
 def load_vocab():
     if not os.path.exists(VOCAB_FILE):
@@ -127,8 +156,8 @@ def save_styles(styles):
 # === Tweet style instructions ===
 STYLE_INSTRUCTIONS = {
     "question":   "Begin the tweet with a probing question.",
-    "narrative":  "Frame your tweet like a story/narrative.",
-    "list":       "Present your tweet as a numbered list of insights, with a brief description afterwards. Remember to adhere to the character length requirement mentioned previously. No hashtags.",
+    "narrative":  "Frame your tweet like a story/narrative. No hashtags.",
+    "list":       "Present your tweet as a numbered list of insights, with a brief description afterwards. As you plan out the numbered list, remember to STRICTLY adhere to the character length requirement mentioned previously.",
     "imperative": "Begin the tweet with an imperative statement.",
     "anecdote":   "Frame the tweet as a personal thought/experience/reflection.",
     "dialogue":   "Frame the tweet (or part of it) as inner monologue/dialogue.",
@@ -291,32 +320,40 @@ def load_latest_perceptions():
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 tweets = re.findall(r'Text: (.+?)\n', f.read())
-                if tweets:
-                    start, end = days_ago*3, days_ago*3+3
-                    print(f"🧠 Perception: Using file {date}, tweets {start}-{end}")
-                    return tweets[start:end]
+                start, end = days_ago*3, days_ago*3+3
+                return tweets[start:end]
+            
+    # no recent file → fetch & save
     print("🧠 Perception: No recent perceptions, pulling from Twitter.")
     data = get_relevant_tweets()
-    save_to_perception_memory(data)
-
+    write_to_perception_file(data)
+    # ingest into vector DB
+    for tweet in data:
+        memory.add_memory(tweet["text"], kind="perception")
+    # retry load (now file exists)
     return load_latest_perceptions()
 
 # === Load past reflections ===
-def load_recent_reflections(n=3):
-    files = sorted(os.listdir(REFLECTIONS_DIR))[-n:]
-    refl = []
-    for fn in files:
-        with open(os.path.join(REFLECTIONS_DIR, fn), encoding="utf-8") as f:
-            refl.extend(re.findall(r'\*\*Tweet:\*\*\s*(.+?)(?:\n===|\Z)', f.read(), re.DOTALL))
-    return refl[-n:]
+# def load_recent_reflections(n=3):
+#     files = sorted(os.listdir(REFLECTIONS_DIR))[-n:]
+#     refl = []
+#     for fn in files:
+#         with open(os.path.join(REFLECTIONS_DIR, fn), encoding="utf-8") as f:
+#             refl.extend(re.findall(r'\*\*Tweet:\*\*\s*(.+?)(?:\n===|\Z)', f.read(), re.DOTALL))
+#     return refl[-n:]
+
+def recent_reflections(n:int=3):
+    """Convenience wrapper so other modules can ask for newest reflections."""
+    return memory.recent(kind="reflection", n=n)
 
 # === Main generator ===
 def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     # 1) Inputs
-    perceptions     = load_latest_perceptions()
-    reflections      = load_recent_reflections()
-    recent_belief    = reflections[-1] if reflections else None
-    perc_block       = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
+    perceptions = load_latest_perceptions()
+    # pull the *n* newest reflections from vector memory instead of .txt
+    reflections = memory.recent(kind="reflection", n=3)
+    recent_belief = reflections[-1] if reflections else None
+    #perc_block       = "\n".join(f"{i+1}. {t}" for i,t in enumerate(perceptions))
     #refl_block       = "\n".join(f"{i+1}. {r}" for i,r in enumerate(reflections))
     if prompt_type!="default_reflection" and recent_belief is None:
         raise ValueError("No prior belief for special prompt")
@@ -336,9 +373,16 @@ def generate_reflective_tweet(mode="short", prompt_type="default_reflection"):
     s_topics, s_weights = zip(*styles.items())
     current_style    = random.choices(s_topics, weights=s_weights, k=1)[0]
 
-    # 4½) semantic recall -------------------------------------------------
-    retrieved_mem = memory.retrieve(current_focus.replace("_", " "), k=2)
-    refl_block = "\n".join(f"• {t[:300]}…" for t in retrieved_mem)  # trim for prompt
+    # 4½) semantic recall from unified memory
+    query = current_focus.replace("_", " ")
+    refl_snips = memory.retrieve(query, k=2, kind="reflection")
+    perc_snips = memory.retrieve(query, k=2, kind="perception")
+    if not perc_snips:
+        perc_snips = memory.sample(k=2, kind="perception")
+
+
+    refl_block  = "\n".join(f"• {t[:500]}…" for t in refl_snips) or "None"
+    perc_block = "\n".join(f"• {t[:500]}…" for t in perc_snips) or "None"
 
     # 5) Ban-list & self-ref
     recent_tw        = get_recent_tweets(20)

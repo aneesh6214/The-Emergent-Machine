@@ -2,7 +2,7 @@ import os
 import time
 import random
 from datetime import datetime
-from generate_tweet import generate_reflective_tweet, extract_final_tweet, load_recent_reflections
+from generate_tweet import generate_reflective_tweet, extract_final_tweet, recent_reflections
 import tweepy
 from dotenv import load_dotenv
 from CONFIG import TESTING
@@ -11,7 +11,7 @@ load_dotenv()
 
 # === Configuration ===
 HOURS  = 5    # total window in hours
-TWEETS = 5   # total number of tweets to post over that window
+TWEETS = 20   # total number of tweets to post over that window
 
 # compute total window in seconds
 total_window = HOURS * 3600
@@ -75,10 +75,10 @@ for i, event_time in enumerate(schedule, start=1):
     print(f"🧠 Mode: {mode.upper()}")
 
     # 2) load recent reflections
-    reflections = load_recent_reflections()
+    has_history = bool(recent_reflections(1))
 
     # 3) decide prompt type: 1–3 defaults, then one special
-    if not reflections:
+    if not has_history:
         PROMPT_TYPE = "default_reflection"
         defaults_since_special += 1
 

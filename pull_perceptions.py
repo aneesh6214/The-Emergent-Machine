@@ -39,20 +39,18 @@ def get_relevant_tweets():
 
     return tweet_data
 
-def save_to_perception_memory(tweet_data):
+def write_to_perception_file(tweet_data):
     with open(PERCEPTION_FILE, "w", encoding="utf-8") as f:
         for i, tweet in enumerate(tweet_data):
-            f.write(f"[Tweet {i+1}]\n")
+            f.write(f"[Tweet]\n")
             f.write(f"Author: @{tweet['username']}\n")
             f.write(f"Text: {tweet['text']}\n")
             f.write(f"Timestamp: {tweet['timestamp']}\n")
             f.write(f"Tweet ID: {tweet['tweet_id']}\n\n")
-            f.write(f"[Bot Reflection Prompt Hook]\n")
-            f.write("> What ideas or questions does this spark in you?\n")
             f.write("---\n\n")
 
     print(f"✅ Saved {len(tweet_data)} tweets to {PERCEPTION_FILE}")
 
 if __name__ == "__main__":
     tweet_data = get_relevant_tweets()
-    save_to_perception_memory(tweet_data)
+    write_to_perception_file(tweet_data)
