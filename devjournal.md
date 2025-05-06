@@ -59,3 +59,19 @@ further agent behaviors (developing new interests/curiosities/beliefs/ideas)
 Something (I dont know what) needs to trigger our bot to write to its moods/curiosity/tweet_styles engines. 
 I think to make this meaningful, these curiosities and mood cant be purely random or purely deterministic (like with prompts). With humans, a new curiosity is a function of all of your old curiosities + the environment/triggers + randomness. How can we simulate the same kind of behavior for our LLM, while keeping it somewhat meaningful to humans? The idea is that we should not simply just be prompting the LLM "think" of a new curiosity, it should be somewhat reminiscent of how humans generate curiosities i guess.
 
+# Entry 5 - Refactor
+goal: refactor codebase
+codebase refactored
+memory file made static
+
+# Entry 6 - Dynamic Engines
+goal: generate new curiosities and prune old ones. this should be a funtion of bot state + stimuli + stochastics
+
+# Entry 7 - Stepping Back | True Emergence
+my oh my this is embarassing
+i have written the behaviors too explicitly
+we have individual systems built to produce behaviors
+rather than arising between interactions within the system
+we need to indirectly elicit the emergent behaviors
+not explicitly ask for them
+

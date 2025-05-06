@@ -8,16 +8,32 @@ import numpy as np
 from datetime import datetime
 from typing import List, Dict
 import random
+from perception_loader import init_perception_memory
 
 EMBED_MODEL = "text-embedding-3-small"
 DIM = 1536
 
 class MemoryDB:
+    # Singleton instance
+    _instance = None
+    # Initialization guard
+    _initialized = False
+
+    def __new__(cls, root_dir: str = None):
+        # Always return the same instance
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self, root_dir: str):
+        # Only initialize once
+        if MemoryDB._initialized:
+            return
+        MemoryDB._initialized = True
         self.root = root_dir
         os.makedirs(self.root, exist_ok=True)
         self.index_path = os.path.join(self.root, "faiss.index")
-        self.meta_path  = os.path.join(self.root, "metadata.jsonl")
+        self.meta_path = os.path.join(self.root, "metadata.jsonl")
 
         # load or init FAISS index
         if os.path.exists(self.index_path):
@@ -31,6 +47,9 @@ class MemoryDB:
             with open(self.meta_path, encoding="utf-8") as f:
                 for line in f:
                     self._meta.append(json.loads(line))
+
+        # bootstrap perceptions into memory
+        init_perception_memory(self)
 
     def _embed(self, text: str) -> List[float]:
         resp = openai.OpenAI().embeddings.create(
@@ -53,9 +72,9 @@ class MemoryDB:
 
         uid = str(uuid.uuid4())
         meta = {
-            "id":        uid,
-            "kind":      kind,
-            "text":      text.strip(),
+            "id": uid,
+            "kind": kind,
+            "text": text.strip(),
             "timestamp": datetime.utcnow().isoformat()
         }
         self._meta.append(meta)
@@ -92,3 +111,7 @@ class MemoryDB:
         """Return k random memory texts (optionally restricted to kind)."""
         pool = [m["text"] for m in self._meta if (kind is None or m["kind"] == kind)]
         return random.sample(pool, k=min(k, len(pool)))
+
+# Instantiate singleton MemoryDB for module-level access
+from config import MEM_DIR
+memory = MemoryDB(MEM_DIR)
