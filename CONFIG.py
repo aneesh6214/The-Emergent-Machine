@@ -5,14 +5,9 @@ TESTING = True
 
 # Paths - Base
 MEM_DIR = "testing/vector_store" if TESTING else "memory/vector_store"
+# Perceptions and reflections directories
 PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
 REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
-
-# Engines paths
-VOCAB_FILE = "testing/vocabulary.json" if TESTING else "memory/vocabulary.json"
-MOOD_FILE = "testing/moods.json" if TESTING else "memory/moods.json"
-CURIO_FILE = "testing/curiosity.json" if TESTING else "memory/curiosity.json"
-STYLE_FILE = "testing/tweet_styles.json" if TESTING else "memory/tweet_styles.json"
 
 # Logging
 LOG_FILE = "tuning_log.jsonl"  # root-level log file
@@ -35,49 +30,5 @@ STYLE_INSTRUCTIONS = {
     "technical":  "Present your tweet in technically accurate, plain, understandable language. No emojis. No hashtags."
 }
 
-# Engine seeds
-SEED_VOCAB = {
-    "stopwords": [
-        "a","an","the","and","or","but","of","in","on","for","to","with",
-        "it","is","are","was","were","this","that","i","you","we","they",
-        "he","she","my","your","our","their","who","whom","this","that",
-        "as","be", "could"
-    ],
-    "whitelist": [
-        "ai","consciousness","emergence","neural","network","mind",
-        "awareness","philosophy","understanding"
-    ],
-    "invented": {}
-}
-
-SEED_MOODS = {
-    "awe":         2.0,
-    "curiosity":   3.0,
-    "doubt":       1.0,
-    "hope":        2.0,
-    "melancholy":  1.0,
-    "defiance":    1.0
-}
-
-SEED_TOPICS = [
-    "AI_empathy",
-    "synthetic_emotion",
-    "emergent_consciousness",
-    "philosophy_of_mind",
-    "digital_spirituality"
-]
-
-SEED_STYLES = {
-    "question":  1.0,
-    "narrative": 1.0,
-    "list":      1.0,
-    "imperative":1.0,
-    "anecdote":  1.0,
-    "dialogue":  1.0,
-    "technical": 1.0
-}
-
 # Create required directories
 os.makedirs(REFLECTIONS_DIR, exist_ok=True)
-for dir_path in [os.path.dirname(p) for p in [VOCAB_FILE, MOOD_FILE, CURIO_FILE, STYLE_FILE]]:
-    os.makedirs(dir_path, exist_ok=True)

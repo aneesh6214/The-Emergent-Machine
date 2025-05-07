@@ -67,7 +67,7 @@ memory file made static
 # Entry 6 - Dynamic Engines
 goal: generate new curiosities and prune old ones. this should be a funtion of bot state + stimuli + stochastics
 
-# Entry 7 - Stepping Back | True Emergence
+# Entry 7 - Stepping Back, Refactoring for True Emergence
 my oh my this is embarassing
 i have written the behaviors too explicitly
 we have individual systems built to produce behaviors
@@ -75,3 +75,41 @@ rather than arising between interactions within the system
 we need to indirectly elicit the emergent behaviors
 not explicitly ask for them
 
+code has been split into two branches 
+master (to be modified)
+v0-engine-arch (legacy, not to be modified)
+
+at some point switch from twitter api to twint
+https://github.com/twintproject/twint
+
+todo:
+    tear out engines
+    unify vector store
+    change core tweet gen
+
+# Entry 8 (master) - Deleting Engines & Unifying Memory
+New Arch:
+    Perceive - Every tweet the bot writes to its memory system about what it percieved
+    Reflect stage - Every N tweets or when a "novelty score" of new perceptions > τ • 20 % probability on each loop ⇒ avoids determinism
+    Plan/Tweet stage - The bot tweets based on its state/memories
+
+STATUS:
+- no more engines
+- new tweet gen arch/cycle [Percieve -> (Chance) Reflect -> Tweet]
+
+perceptions will need to be changed. bot is very stagnant. there are no systems which would trigger drift
+without being elicited from the environment.
+
+## NEXT STEPS
+change perception:
+- track bots following & approximate a home page feed from that
+- use SNScrape (or something else) to scrape from twitter (not API)
+
+agent behaviors:
+- switch to mistral (or some local model), follow MCP
+- give bot agent abilites (search hashtags, follow people, reply, etc.)
+
+long term/non-immediate:
+- memory analysis (clustering) to prove/identify emergent behaviors
+- memory scoring (importance/novelty)
+- goals/motivations?
