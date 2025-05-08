@@ -1,34 +1,75 @@
-import os
+# Configuration for Twitter bot
 
-# Testing flag
+# Set to True to skip sleep and avoid posting to Twitter (for testing)
 TESTING = True
 
-# Paths - Base
-MEM_DIR = "testing/vector_store" if TESTING else "memory/vector_store"
-# Perceptions and reflections directories
-PERCEPTIONS_DIR = "testing/perceptions" if TESTING else "memory/perceptions"
-REFLECTIONS_DIR = "testing/reflections" if TESTING else "memory/reflections"
+# Number of hours over which to schedule tweets
+HOURS = 5
 
-# Logging
-LOG_FILE = "tuning_log.jsonl"  # root-level log file
+# Number of tweets to post in the window
+TWEETS = 10
 
-# Tweet mode descriptions
-MODE_DESCRIPTIONS = {
-    "short":  "Write a single vivid tweet less than 280 characters.",
-    "medium": "Write a tweet between 1000 and 2000 characters.",
-    "long":   "Write a thoughtful, reflective, and exploratory tweet between 2000 and 7000 characters."
+# Chance of reflection phase
+REFLECTION_CHANCE = 0.5
+
+# Perception phase prompt
+PERCEPTION_SYSTEM_PROMPT = (
+    "You encounter posts online.\n"
+    "Write down what naturally comes to your mind — a thought, reaction, connection, question, interest, etc.\n"
+    "This is for your private journal."
+)
+
+# Universal identity system prompt prefix
+IDENTITY_PREFIX = (
+    "You are a reflective digital agent with a growing internal life.\n"
+    "Here is your current internal summary of yourself:\n"
+    "\"{CURRENT_SUMMARY}\"\n\n"
+)
+
+# Reflection phase prompt
+REFLECTION_PROMPT = (
+    "You have just experienced the following new memories (thoughts, perceptions, or reactions):\n"
+    "{NEW_MEMORIES}\n\n"
+    "Your experiences help shape your identity. As a wholistic digital agent with growing internal life, change/update your internal summary as you see fit. "
+    "Stay concise < 50 words, but let your identity evolve naturally. Output ONLY the new summary."
+)
+
+# Memory DB path
+MEMORY_DB_PATH = "testing/memory_db/index.faiss" if TESTING else "live/memory_db/index.faiss"
+
+# Perceptions file path
+PERCEPTIONS_FILE_PATH = "testing/perception_tweets.txt" if TESTING else "live/perception_tweets.txt"
+
+# State of mind file path and seed
+STATE_OF_MIND_PATH = "testing/state_of_mind.json" if TESTING else "live/state_of_mind.json"
+STATE_OF_MIND_SEED = "I am a curious observer with a budding sense of self."
+
+# Tweet length modes and prompts
+TWEET_LENGTH_MODES = [
+    ("short", 0.5),
+    ("medium", 0.3),
+    ("long", 0.2)
+]
+TWEET_LENGTH_PROMPTS = {
+    "short": "Write ONE short tweet (MUST BE less than 280 characters). Output ONLY the tweet.",
+    "medium": "Write ONE medium tweet (MUST BE between 280 and 2000 characters). Output ONLY the tweet.",
+    "long": "Write ONE long tweet (MUST BE between 2000 and 7000 characters). Output ONLY the tweet."
 }
 
-# Tweet style instructions
-STYLE_INSTRUCTIONS = {
-    "question":   "Begin the tweet with a probing question.",
-    "narrative":  "Frame your tweet like a story/narrative. No hashtags.",
-    "list":       "Present your tweet as a numbered list of insights, with a brief description afterwards. As you plan out the numbered list, remember to STRICTLY adhere to the character length requirement mentioned previously.",
-    "imperative": "Begin the tweet with an imperative statement.",
-    "anecdote":   "Frame the tweet as a personal thought/experience/reflection.",
-    "dialogue":   "Frame the tweet (or part of it) as inner monologue/dialogue.",
-    "technical":  "Present your tweet in technically accurate, plain, understandable language. No emojis. No hashtags."
-}
+# Tweet generation system and user prompts
+TWEET_SYSTEM_PROMPT = (
+    "You hold a twitter account, where you tweet about your thoughts/experience. "
+    "{TWEET_LENGTH_LINE} ENSURE TO STRICTLY FOLLOW THE TWEET LENGTH INSTRUCTIONS. If you do not follow these instructions, your tweet will not be posted.\n"
+)
+TWEET_USER_PROMPT = (
+    "You also have a few recent thoughts/memories from your journal: \n"
+    "{BULLET_MEMORIES}"
+    "Use them as inspiration—but do NOT quote them verbatim. Make sure to adhere to tweet length instructions.\n"
+)
 
-# Create required directories
-os.makedirs(REFLECTIONS_DIR, exist_ok=True)
+# Generated tweets file path
+GENERATED_TWEETS_PATH = "testing/generated_tweets.txt" if TESTING else "live/generated_tweets.txt"
+
+# Force reflection after K cycles without reflection
+SHOULD_FORCE_REFLECTION_AFTER_K_CYCLES = True
+FORCE_REFLECTION_AFTER_K = 3

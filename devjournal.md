@@ -113,3 +113,27 @@ long term/non-immediate:
 - memory analysis (clustering) to prove/identify emergent behaviors
 - memory scoring (importance/novelty)
 - goals/motivations?
+
+# Entry 9 - Fresh Start
+Starting from the beginning
+- vector DB set up
+- perception phase set up 
+- model call abstracted into model.py
+- reflect phase set up (modifies state_of_mind context)
+- tweet gen set up
+
+percept -> reflect -> tweet
+overarching "state of mind" context
+model writes to state of mind during reflection
+top k memories ("diverse" retrieval) added at all prompts
+tweet 3 variable lengths (short, medium, long)
+temp varies by mode (short=0.7, medium=0.9, long=1.1)
+
+todo:
+switch to local llm & mcp
+agent behaviors (state of mind)
+other perception sources (books, etc.)
+fine tune persona
+adaptive ?
+make way i can talk to it and it remembers
+how does openai memory work so good?
