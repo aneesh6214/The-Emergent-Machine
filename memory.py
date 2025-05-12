@@ -15,7 +15,7 @@ class MemoryDB:
         db_dir = os.path.dirname(self.db_path)
         os.makedirs(db_dir, exist_ok=True)
         self.jsonl_path = os.path.join(db_dir, "log.jsonl")
-        self.index = faiss.IndexFlatL2(dim)
+        self.index: faiss.IndexFlatL2 | None = None
         self.entries = []  # Store (text, vector) pairs for now
         if os.path.exists(self.db_path):
             self.load()
@@ -28,7 +28,10 @@ class MemoryDB:
             "response": text,
             "timestamp": timestamp
         }
-        self.index.add(np.array([vector]).astype('float32'))
+        vec_np = np.array([vector]).astype("float32")
+        if self.index is None or self.index.d != vec_np.shape[1]:
+            self.index = faiss.IndexFlatL2(vec_np.shape[1])
+        self.index.add(vec_np)
         self.entries.append((text, vector))
         self.save()
         # Log metadata to jsonl file
@@ -38,14 +41,21 @@ class MemoryDB:
     def save(self):
         db_dir = os.path.dirname(self.db_path)
         os.makedirs(db_dir, exist_ok=True)
-        faiss.write_index(self.index, self.db_path)
+        if self.index is not None:
+            faiss.write_index(self.index, self.db_path)
 
     def load(self):
         self.index = faiss.read_index(self.db_path)
 
     def search(self, vector, k=5):
-        D, I = self.index.search(np.array([vector]).astype('float32'), k)
-        return [(self.entries[i][0], D[0][j]) for j, i in enumerate(I[0]) if i < len(self.entries)]
+        if self.index is None:
+            return []
+        D, I = self.index.search(np.array([vector]).astype("float32"), k)
+        return [
+            (self.entries[i][0], float(D[0][j]))
+            for j, i in enumerate(I[0])
+            if i < len(self.entries)
+        ]
 
 # Singleton instance
 memory_db = MemoryDB() 

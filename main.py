@@ -9,7 +9,7 @@ from tweet_phase import tweet_phase
 
 
 HOURS = 1
-TWEETS = 10
+TWEETS = 3
 
 # Compute total window in seconds
 total_window = HOURS * 3600

@@ -137,3 +137,6 @@ fine tune persona
 adaptive ?
 make way i can talk to it and it remembers
 how does openai memory work so good?
+
+# Entry 10 - Switch to Local LLM
+https://huggingface.co/TheBloke/MythoMax-L2-13B-GGUF

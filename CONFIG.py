@@ -2,6 +2,7 @@
 
 # Set to True to skip sleep and avoid posting to Twitter (for testing)
 TESTING = True
+FULL_PRINT = False
 
 # Number of hours over which to schedule tweets
 HOURS = 5
@@ -46,9 +47,9 @@ STATE_OF_MIND_SEED = "I am a curious observer with a budding sense of self."
 
 # Tweet length modes and prompts
 TWEET_LENGTH_MODES = [
-    ("short", 0.5),
+    ("short", 0.6),
     ("medium", 0.3),
-    ("long", 0.2)
+    ("long", 0.1)
 ]
 TWEET_LENGTH_PROMPTS = {
     "short": "Write ONE short tweet (MUST BE less than 280 characters). Output ONLY the tweet.",
@@ -73,3 +74,6 @@ GENERATED_TWEETS_PATH = "testing/generated_tweets.txt" if TESTING else "live/gen
 # Force reflection after K cycles without reflection
 SHOULD_FORCE_REFLECTION_AFTER_K_CYCLES = True
 FORCE_REFLECTION_AFTER_K = 3
+
+# Path to local GGUF model for llama-cpp
+LLAMA_MODEL_PATH = "ggufs/MythoMax-L2-13B-GGUF.gguf"
