@@ -140,3 +140,18 @@ how does openai memory work so good?
 
 # Entry 10 - Switch to Local LLM
 https://huggingface.co/TheBloke/MythoMax-L2-13B-GGUF
+
+Switched to Mixtral 8xB (MythoMax Q5_M_K)
+tried out mcp with mcp client, added lag- not very practical
+
+better to go with a light wrapper around the llm
+can implement our own modular context wrapper/system
+leave room for agent "actions"
+
+also cleaned code. quick summary:
+main.py (sets up timing/calles each phase)
+perception.py (gets tweets FROM FILE & prompts perception)
+reflection.py (gets k memories & prompts reflection)
+tweet_phase.py (select tweet length & prompt tweet, writes to tweet file)
+memory.py (singleton db interface)
+model.py (LLM interface & calls write to memory)

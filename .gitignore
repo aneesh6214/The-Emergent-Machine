@@ -2,3 +2,5 @@
 /__pycache__/*
 .venv/*
 ggufs/MythoMax-L2-13B-GGUF.gguf
+/cache
+/testing
