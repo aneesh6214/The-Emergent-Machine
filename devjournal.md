@@ -155,3 +155,12 @@ reflection.py (gets k memories & prompts reflection)
 tweet_phase.py (select tweet length & prompt tweet, writes to tweet file)
 memory.py (singleton db interface)
 model.py (LLM interface & calls write to memory)
+
+# Entry 11 - Switch to Reddit for Perceptions
+found large reddit DB
+reddit_perception.py to interact with the DB (build/use cache)
+bot now "follows" subreddits and prefers a time period, tracked in state_of_mind
+chance to update state_of_mind during reflection
+updated memory retrieval (score based on relevance AND recency)
+
+embeddings use embedding model
