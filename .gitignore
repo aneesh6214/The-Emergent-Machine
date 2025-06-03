@@ -1,6 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Project specific
+twitter_session.pkl
+memories.json
+chroma_db/
+.chroma/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright
+playwright-report/
+test-results/
+
+# Logs
+logs/
+*.log
+
 .env
-/__pycache__/*
-.venv/*
-ggufs/MythoMax-L2-13B-GGUF.gguf
-/cache
-/testing

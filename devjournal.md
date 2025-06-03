@@ -164,3 +164,5 @@ chance to update state_of_mind during reflection
 updated memory retrieval (score based on relevance AND recency)
 
 embeddings use embedding model
+
+# Entry 12 - COMPLETE REDESIGN w/Playwright & LangGraph
