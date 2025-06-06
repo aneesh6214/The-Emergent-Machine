@@ -49,7 +49,7 @@ FORCE_REFLECTION_AFTER_K = 3
 # Memory retrieval settings
 NUM_MEMORIES_FOR_TWEET = 5
 # Maximum cosine similarity allowed between memories (lower = more diverse)
-SIMILARITY_THRESHOLD = 0.9
+SIMILARITY_THRESHOLD = 0.7
 
 # Default Reddit settings
 DEFAULT_SUBREDDITS = ["philosophy", "Futurology", "artificial", "slatestarcodex", "consciousness"]

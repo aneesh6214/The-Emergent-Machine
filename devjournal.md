@@ -161,3 +161,7 @@ Tried using playwright- switching back for now to focus on simplicity & elicitin
 Is memory & environment interaction enough?
 lets find out.
 using reddit for perceptions, model can choose following
+
+current state:
+- looking better, may be time for eval metrics for "personality" consistency/nuance/depth
+- still repetitive, memory system needs improvement ()
