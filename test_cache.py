@@ -1,6 +1,7 @@
 import pickle
 import random
-from config import DEFAULT_SUBREDDITS, DEFAULT_TIME_RANGE
+import os
+from config import DEFAULT_SUBREDDITS, DEFAULT_TIME_RANGE, MIN_SCORE, MIN_BODY_LENGTH
 import datasets
 from datetime import datetime
 
@@ -12,8 +13,13 @@ SPLIT = "train"
 # Configuration flags (modify these variables to control behavior)
 FLAG_CLEAN_CACHE = True
 FLAG_VALIDATE_CACHE = False     # Set to True to validate the cache structure
+FLAG_BUILD_CACHE = False        # Set to True to force rebuild the cache
 FLAG_SUBREDDIT = "philosophy"             # Set to a subreddit (e.g., "philosophy") to test a specific subreddit. Leave empty to use default.
 FLAG_TIME_RANGE = DEFAULT_TIME_RANGE  # e.g., "2012-2016"
+
+# Checkpoint configuration
+CHECKPOINT_INTERVAL = 1000000  # Save cache checkpoint every 1mil posts
+checkpoint_path = cache_path + ".checkpoint"
 
 
 def print_post(post):
@@ -77,16 +83,101 @@ def clean_cache(cache):
     return cleaned_cache
 
 
-def main():
-    # Load the unified cache
-    try:
-        with open(cache_path, "rb") as f:
-            cache = pickle.load(f)
-    except Exception as ex:
-        print(f"Error loading cache: {ex}")
-        cache = {}
+def post_year(post):
+    """Extract year from a post's timestamp."""
+    created_utc = post.get("created_utc", None)
+    if created_utc is None:
+        return None
+    return datetime.fromtimestamp(created_utc).year
 
-    print(f"Loaded cache: {len(cache)} subreddits")
+
+def is_quality_post(post):
+    """Check if a post meets quality requirements."""
+    score = post.get("score")
+    if score is None or score < MIN_SCORE:
+        return False
+    body = post.get("selftext", "")
+    if not body or len(body) < MIN_BODY_LENGTH:
+        return False
+    if body.strip().lower() in ["[deleted]", "[removed]", "none", "null", ""]:
+        return False
+    return True
+
+
+def build_subreddit_cache():
+    """Build subreddit-to-quality-indices cache from local HuggingFace dataset."""
+    print(f"🔄 Building subreddit-to-quality-indices cache (with years) from local HuggingFace dataset...")
+    # Load dataset
+    dataset = datasets.load_dataset(
+        DATASET_NAME,
+        split=SPLIT,
+        verification_mode="no_checks",
+        streaming=False
+    )
+    total = len(dataset)
+    # Load or initialize cache and resume index
+    if os.path.exists(checkpoint_path):
+        print(f"🛠️ Resuming from checkpoint: {checkpoint_path}")
+        with open(checkpoint_path, 'rb') as f:
+            ckpt = pickle.load(f)
+        subreddit_to_indices = ckpt.get("cache", {})
+        start_idx = ckpt.get("last_idx", 0) + 1
+        print(f"Resuming processing at post {start_idx}/{total}...")
+    else:
+        subreddit_to_indices = {}
+        start_idx = 0
+    print(f"Processing posts {start_idx} to {total}...")
+    # Ensure checkpoint directory exists
+    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+
+    for idx in range(start_idx, total):
+        # Periodic status update
+        if idx % 100000 == 0:
+            print(f"Processed {idx}/{total} posts...")
+
+        post = dataset[idx]
+        subreddit = post.get("subreddit", None)
+        year = post_year(post)
+        if subreddit and year and is_quality_post(post):
+            key = subreddit.lower()
+            if key not in subreddit_to_indices:
+                subreddit_to_indices[key] = []
+            subreddit_to_indices[key].append((idx, year))
+        # Save checkpoint at intervals
+        if idx > 0 and idx % CHECKPOINT_INTERVAL == 0:
+            with open(checkpoint_path, 'wb') as f:
+                pickle.dump({"cache": subreddit_to_indices, "last_idx": idx}, f)
+            print(f"🔖 Checkpoint saved at post {idx}")
+
+    # Once complete, remove any checkpoint and save final cache
+    if os.path.exists(checkpoint_path):
+        os.remove(checkpoint_path)
+        print(f"🗑️ Removed checkpoint file {checkpoint_path}")
+    # Ensure cache directory exists
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    # Save the final cache
+    with open(cache_path, "wb") as f:
+        pickle.dump(subreddit_to_indices, f)
+    print(f"✅ Cache built and saved to {cache_path}.")
+    print(f"Total subreddits indexed: {len(subreddit_to_indices)}")
+    return subreddit_to_indices
+
+
+def main():
+    # Check if cache needs to be built
+    if FLAG_BUILD_CACHE or not os.path.exists(cache_path):
+        print("Building cache...")
+        cache = build_subreddit_cache()
+    else:
+        # Load the existing cache
+        try:
+            with open(cache_path, "rb") as f:
+                cache = pickle.load(f)
+                print(f"Loaded existing cache: {len(cache)} subreddits")
+        except Exception as ex:
+            print(f"Error loading cache: {ex}")
+            print("Building new cache...")
+            cache = build_subreddit_cache()
 
     if FLAG_CLEAN_CACHE:
         # Clean the cache by removing any invalid entries
@@ -94,6 +185,12 @@ def main():
         cache = clean_cache(cache)
         cleaned_entries = sum(len(v) for v in cache.values())
         print(f"Cleaned cache: {len(cache)} subreddits with {cleaned_entries} valid entries (dropped {original_entries - cleaned_entries} invalid entries).")
+        
+        # Save cleaned cache back to disk
+        if cleaned_entries < original_entries:
+            with open(cache_path, "wb") as f:
+                pickle.dump(cache, f)
+            print("Saved cleaned cache to disk.")
 
     if FLAG_VALIDATE_CACHE:
         print("\nValidating cache:")

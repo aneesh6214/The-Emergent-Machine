@@ -6,12 +6,10 @@ import os
 import json
 import random
 import pickle
-import hashlib
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Set
 
 import datasets
-import numpy as np
 
 from config import (
     REDDIT_CACHE_DIR,
@@ -34,13 +32,15 @@ _cache_file = os.path.join(REDDIT_CACHE_DIR, "seen_posts.json")
 CACHE_FILENAME = os.path.join(REDDIT_CACHE_DIR, "subreddit_index.pkl")
 DATASET_NAME = "fddemarco/pushshift-reddit"
 SPLIT = "train"
-CHECKPOINT_INTERVAL = 5_000_000
 
 # Ensure cache dir exists
 os.makedirs(REDDIT_CACHE_DIR, exist_ok=True)
 
 # Add module-level cache for the local dataset
 _local_dataset = None
+
+# Add module-level cache for the subreddit cache
+_subreddit_cache = None
 
 def _load_seen_posts():
     """Load the cache of seen post IDs"""
@@ -192,16 +192,6 @@ def reddit_perception_phase() -> Optional[str]:
     
     return response 
 
-def post_in_time_range(post, time_range):
-    years = time_range.split("-")
-    start_year = int(years[0])
-    end_year = int(years[-1])
-    created_utc = post.get("created_utc", None)
-    if created_utc is None:
-        return False
-    year = datetime.fromtimestamp(created_utc).year
-    return start_year <= year <= end_year
-
 def post_year(post) -> Optional[int]:
     created_utc = post.get("created_utc", None)
     if created_utc is None:
@@ -241,35 +231,14 @@ def clean_cache(cache):
         print(f"Dropped {total_invalid} invalid entries during cache cleaning.")
     return cleaned_cache
 
-def build_subreddit_cache():
-    print(f"🔄 Building subreddit-to-quality-indices cache (with years) from local HuggingFace dataset...")
-    dataset = datasets.load_dataset(
-        DATASET_NAME,
-        split=SPLIT,
-        verification_mode="no_checks",
-        streaming=False
-    )
-    subreddit_to_indices = {}
-    total = len(dataset)
-    for idx in range(total):
-        post = dataset[idx]
-        subreddit = post.get("subreddit", None)
-        year = post_year(post)
-        if subreddit and year and is_quality_post(post):
-            key = subreddit.lower()
-            if key not in subreddit_to_indices:
-                subreddit_to_indices[key] = []
-            subreddit_to_indices[key].append((idx, year))
-    with open(CACHE_FILENAME, "wb") as f:
-        pickle.dump(subreddit_to_indices, f)
-    print(f"✅ Cache built and saved to {CACHE_FILENAME}.")
-    print(f"Total subreddits indexed: {len(subreddit_to_indices)}")
-    return subreddit_to_indices
-
 def load_subreddit_cache():
+    global _subreddit_cache
+    if _subreddit_cache is not None:
+        return _subreddit_cache
     if not os.path.exists(CACHE_FILENAME):
         print(f"❌ Cache not found at {CACHE_FILENAME}. Please build the cache using test_cache.py.")
-        return {}
+        _subreddit_cache = {}
+        return _subreddit_cache
     with open(CACHE_FILENAME, "rb") as f:
         original_cache = pickle.load(f)
     print(f"Loaded cache with {sum(len(v) for v in original_cache.values())} entries before cleaning.")  # Log before cleaning
@@ -281,7 +250,8 @@ def load_subreddit_cache():
             pickle.dump(cleaned_cache, f)
         print(f"Cache updated: dropped {original_entries - cleaned_entries} invalid entries and wrote cleaned cache back to disk.")
     print(f"✅ Loaded subreddit cache from {CACHE_FILENAME} ({len(cleaned_cache)} subreddits after cleaning)")
-    return cleaned_cache
+    _subreddit_cache = cleaned_cache
+    return _subreddit_cache
 
 def load_local_dataset():
     global _local_dataset
@@ -296,35 +266,7 @@ def load_local_dataset():
     )
     return _local_dataset
 
-def filter_post_by_time(post, time_range=DEFAULT_TIME_RANGE):
-    years = time_range.split("-")
-    start_year = int(years[0])
-    end_year = int(years[-1])
-    created_utc = post.get("created_utc", None)
-    if created_utc is None:
-        return False
-    year = datetime.fromtimestamp(created_utc).year
-    return start_year <= year <= end_year
-
-def get_random_post_from_subreddit(subreddit: str, time_range=DEFAULT_TIME_RANGE) -> Optional[Dict]:
-    """Return a random post from a specific subreddit and time range using the cache."""
-    cache = load_subreddit_cache()
-    dataset = load_local_dataset()
-    key = subreddit.lower().replace("r/", "")
-    if key not in cache:
-        print(f"❌ Subreddit r/{key} does NOT exist in cache.")
-        return None
-    indices = cache[key]
-    # Filter indices by time range
-    filtered_indices = [i for i in indices if filter_post_by_time(dataset[int(i)], time_range)]
-    if not filtered_indices:
-        print(f"❌ No posts found for r/{key} in time range {time_range}.")
-        return None
-    idx = random.choice(filtered_indices)
-    post = dataset[int(idx)]
-    return post
-
-def parse_time_range(time_range: str) -> Tuple[int, int]:
+def parse_time_range(time_range: str) -> tuple[int, int]:
     years = time_range.split("-")
     if len(years) == 1:
         return int(years[0]), int(years[0])

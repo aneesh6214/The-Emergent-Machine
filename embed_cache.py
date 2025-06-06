@@ -9,9 +9,27 @@ from model import embed_text
 # File paths
 INPUT_FILENAME = "cache/reddit_cache/subreddit_names.txt"
 OUTPUT_FILENAME = "cache/reddit_cache/embedded_subreddit_index.pkl"
+CACHE_FILENAME = "cache/reddit_cache/subreddit_index.pkl"
 
 # Batch size for processing
 BATCH_SIZE = 200
+
+
+def generate_subreddit_names_from_cache():
+    """Generate subreddit_names.txt from the cache if it does not exist."""
+    if not os.path.exists(INPUT_FILENAME):
+        print(f"{INPUT_FILENAME} not found. Generating from cache...")
+        # Assuming cache is a dictionary stored in a pickle file
+        if os.path.exists(CACHE_FILENAME):
+            with open(CACHE_FILENAME, "rb") as f:
+                cache = pickle.load(f)
+            subreddit_names = list(cache.keys())
+            with open(INPUT_FILENAME, "w") as f:
+                for name in subreddit_names:
+                    f.write(f"{name}\n")
+            print(f"Generated {INPUT_FILENAME} with {len(subreddit_names)} subreddit names.")
+        else:
+            print(f"Cache file {CACHE_FILENAME} not found. Cannot generate {INPUT_FILENAME}.")
 
 
 def load_subreddit_names():
@@ -52,11 +70,13 @@ def save_embeddings(embeddings_dict):
         os.makedirs(directory)
     with open(OUTPUT_FILENAME, "wb") as f:
         pickle.dump(embeddings_dict, f)
-    print(f"Embeddings saved to {OUTPUT_FILENAME}")
+    #print(f"Embeddings saved to {OUTPUT_FILENAME}")
 
 
 def main():
     start_time = time.time()
+    # Generate subreddit names if the file does not exist
+    generate_subreddit_names_from_cache()
     # Load subreddit names
     names = load_subreddit_names()
     print(f"Loaded {len(names)} subreddit names from {INPUT_FILENAME}.")

@@ -1,3 +1,6 @@
+import os
+import random
+import math
 from config import (
     TWEET_SYSTEM_PROMPT, 
     TWEET_USER_PROMPT, 
@@ -14,10 +17,6 @@ from recent_perception import get_recent_perception
 from model import call_llm, embed_text
 from memory import memory_db
 from helpers import cosine_similarity
-import os
-import random
-import numpy as np
-import math
 
 def get_diverse_recent_memories(n=NUM_MEMORIES_FOR_TWEET, threshold=SIMILARITY_THRESHOLD):
     """Retrieve a diverse set of recent memories using cosine similarity.

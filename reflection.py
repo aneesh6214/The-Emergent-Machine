@@ -14,11 +14,9 @@ from state_of_mind import (
     get_followed_subreddits,
     update_state_from_json
 )
-from model import call_llm, embed_text
-from helpers import strip_surrounding_quotes, cosine_similarity
+from model import call_llm
+from helpers import strip_surrounding_quotes
 from memory import memory_db
-from recent_perception import get_recent_perception
-import pickle
 from reddit_perception import search_reddit_embeddings
 
 last_reflection_index = 0
@@ -84,7 +82,8 @@ def reflection_phase():
             system_prompt="", 
             user_prompt=user_prompt, 
             response_type="reflection",
-            store_in_memory=False
+            store_in_memory=False,
+            max_tokens=512
         )
         
         # Clean up the response to ensure it's valid JSON
@@ -120,7 +119,8 @@ def reflection_phase():
             system_prompt="", 
             user_prompt=user_prompt, 
             response_type="reflection",
-            store_in_memory=False
+            store_in_memory=False,
+            max_tokens=512
         )
         
         # Update the state

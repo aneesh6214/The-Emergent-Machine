@@ -1,6 +1,6 @@
 import os
 import json
-from config import STATE_OF_MIND_PATH, STATE_OF_MIND_SEED, DEFAULT_SUBREDDITS, DEFAULT_TIME_RANGE
+from config import STATE_OF_MIND_PATH, STATE_OF_MIND_SEED, DEFAULT_SUBREDDITS
 
 def load_state_of_mind():
     if not os.path.exists(STATE_OF_MIND_PATH):

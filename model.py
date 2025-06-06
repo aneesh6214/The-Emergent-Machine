@@ -1,58 +1,29 @@
 # model.py
-# Handles local LLM calls using llama-cpp-python and provides embeddings.
+# Handles LLM calls using Ollama and provides embeddings.
 
 from __future__ import annotations
 
 import os
 import threading
-from typing import List, Dict, Any
+from typing import List
 
-from llama_cpp import Llama  # type: ignore
+import ollama
 from sentence_transformers import SentenceTransformer
 
-from config import IDENTITY_PREFIX, LLAMA_MODEL_PATH, FULL_PRINT
+from config import IDENTITY_PREFIX, FULL_PRINT
 from state_of_mind import get_identity_summary
 from memory import memory_db
 from helpers import format_prompt_for_display, strip_surrounding_quotes
 
 # --------------------------------------------------------------------------------------
-# Thread-safe singleton for the llama.cpp model
+# Ollama configuration
 # --------------------------------------------------------------------------------------
 
-_llm_instance: Llama | None = None
-_llm_lock = threading.Lock()
-
-
-def _get_llm() -> Llama:
-    """Load the GGUF model once and reuse it for subsequent calls."""
-    global _llm_instance
-    
-    if _llm_instance is None:
-        with _llm_lock:
-            if _llm_instance is None:  # double-check inside the lock
-                model_path = os.getenv("LLAMA_MODEL_PATH", LLAMA_MODEL_PATH)
-                
-                if not os.path.isfile(model_path):
-                    raise FileNotFoundError(
-                        f"GGUF model not found at '{model_path}'. Set LLAMA_MODEL_PATH env var or update config."
-                    )
-
-                # Initialize the model with appropriate configuration
-                _llm_instance = Llama(
-                    model_path=model_path,
-                    n_ctx=8192,
-                    n_threads=os.cpu_count() or 8,
-                    n_gpu_layers=-1,  # Use GPU acceleration when available
-                    embedding=True,  # Enables create_embedding
-                    verbose=FULL_PRINT,
-                )
-                
-    return _llm_instance
-
+OLLAMA_MODEL = "mixtral"  # The model you pulled with ollama pull mixtral
 
 # --------------------------------------------------------------------------------------
 # Embeddings
-# Now using a fast embedding model (all-MiniLM) via sentence-transformers
+# Using a fast embedding model (all-MiniLM) via sentence-transformers
 # --------------------------------------------------------------------------------------
 
 _embedding_model = None
@@ -86,8 +57,8 @@ def call_llm(*,
             system_prompt: str | None = None, 
             user_prompt: str | None = None, 
             temperature: float = 0.7, 
-            max_tokens: int = 128) -> str:
-    """Generate a response using the local LLM model.
+            max_tokens: int = 256) -> str:
+    """Generate a response using Ollama.
     
     Creates a unified prompt from system/user input and manages storing 
     responses in memory if requested.
@@ -110,25 +81,34 @@ def call_llm(*,
     
     # Format prompt for display
     display_prompt = format_prompt_for_display(unified_prompt)
-    print(f"🤖 Prompting model w/prompt -->\n--- BEGIN PROMPT ---\n{display_prompt}\n--- END PROMPT ---")
+    if FULL_PRINT:
+        print(f"🤖 Prompting model w/prompt -->\n--- BEGIN PROMPT ---\n{display_prompt}\n--- END PROMPT ---")
 
-    # Call the local LLM with the original unmodified prompt
-    llm = _get_llm()
-    llm_response = llm.create_completion(
+    # Call Ollama API
+    try:
+        response = ollama.generate(
+            model=OLLAMA_MODEL,
         prompt=unified_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
+            options={
+                'temperature': temperature,
+                'num_predict': max_tokens,
+            }
     )
 
-    reply: str = llm_response.get("choices", [{}])[0].get("text", "").strip()
+        reply: str = response['response'].strip()
+        
+    except Exception as e:
+        print(f"❌ Error calling Ollama: {e}")
+        reply = ""
     
     # Strip surrounding quotes if present
     reply = strip_surrounding_quotes(reply)
     
-    print(f"🤖 LLM Responded -->\n{reply}")
+    if FULL_PRINT:
+        print(f"🤖 LLM Responded -->\n{reply}")
 
     # Store in memory if requested
-    if store_in_memory:
+    if store_in_memory and reply:
         persisted_text = reply[7:] if response_type == "tweet" and reply.startswith("Tweet: ") else reply
         vector = embed_text(persisted_text)
         memory_db.add(persisted_text, vector, response_type=response_type)

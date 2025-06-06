@@ -1,7 +1,5 @@
-import os
 import time
 import random
-from datetime import datetime
 from config import TESTING, HOURS, TWEETS
 from perception import perception_phase
 from reflection import reflection_phase

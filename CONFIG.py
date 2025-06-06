@@ -11,7 +11,7 @@ PRETTY_PRINT = False  # When True, truncates memory content in prompt logging
 
 # Schedule configuration
 HOURS = 5
-TWEETS = 100
+TWEETS = 500
 
 #######################################
 # FILE PATHS
@@ -32,9 +32,6 @@ REDDIT_CACHE_DIR = "cache/reddit_cache"
 
 # Generated tweets output
 GENERATED_TWEETS_PATH = "testing/generated_tweets.txt" if TESTING else "live/generated_tweets.txt"
-
-# LLM model path
-LLAMA_MODEL_PATH = "ggufs/MythoMax-L2-13B-GGUF.gguf"
 
 #######################################
 # BEHAVIOR SETTINGS
@@ -119,7 +116,7 @@ REFLECTION_PROMPT = (
     "You have just experienced the following new memories (thoughts, perceptions, or reactions):\n"
     "{NEW_MEMORIES}\n\n"
     "Your experiences help shape your identity. As a wholistic digital agent with growing internal life, change/update your internal summary as you see fit. "
-    "Stay concise < 50 words, but let your identity evolve naturally. Output ONLY the new summary."
+    "Stay concise, but let your identity evolve naturally. Output ONLY the new summary."
 )
 
 REFLECTION_PROMPT_WITH_REDDIT = (
@@ -129,7 +126,7 @@ REFLECTION_PROMPT_WITH_REDDIT = (
     "{SUBREDDITS}\n\n"
     "You can add/remove subreddits from your following. Here are some options: {SUBREDDIT_SUGGESTIONS}\n\n"
     "Based on all of this, update both:\n\n"
-    "1. Your concise internal summary (< 50 words).\n"
+    "1. Your concise internal summary.\n"
     "2. Your reading preferences:\n"
     "  - followed_subreddits – list of subreddits to keep/sub/unsub\n"
     "**Output ONLY valid JSON** with exactly these three keys:\n"

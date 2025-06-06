@@ -156,11 +156,8 @@ tweet_phase.py (select tweet length & prompt tweet, writes to tweet file)
 memory.py (singleton db interface)
 model.py (LLM interface & calls write to memory)
 
-# Entry 11 - Switch to Reddit for Perceptions
-found large reddit DB
-reddit_perception.py to interact with the DB (build/use cache)
-bot now "follows" subreddits and prefers a time period, tracked in state_of_mind
-chance to update state_of_mind during reflection
-updated memory retrieval (score based on relevance AND recency)
-
-embeddings use embedding model
+# Entry 11
+Tried using playwright- switching back for now to focus on simplicity & eliciting emergent beliefs
+Is memory & environment interaction enough?
+lets find out.
+using reddit for perceptions, model can choose following

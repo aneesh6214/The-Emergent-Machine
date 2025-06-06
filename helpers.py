@@ -3,7 +3,6 @@ Helper functions for formatting, display, and general utilities.
 """
 
 import re
-import numpy as np
 from config import PRETTY_PRINT
 
 def format_prompt_for_display(prompt: str) -> str:
@@ -79,6 +78,8 @@ def cosine_similarity(vec1, vec2):
     Returns a value between 0 and 1, where 1 means identical vectors
     and 0 means orthogonal vectors.
     """
+    import numpy as np
+    
     vec1 = np.array(vec1)
     vec2 = np.array(vec2)
     
